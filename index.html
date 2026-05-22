@@ -1,883 +1,958 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>아동 패션 프롬프트 생성기</title>
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif; }
-    .fade-in  { animation: fadeIn  0.22s ease-out; }
-    .slide-in { animation: slideIn 0.22s ease-out; }
-    @keyframes fadeIn  { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes slideIn { from { opacity:0; } to { opacity:1; } }
-    pre { white-space:pre-wrap; word-break:break-word; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>버추얼 모델 프롬프트 생성기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fff;--bg2:#f7f7f5;--bg3:#efefec;
+  --border:rgba(0,0,0,.1);--border2:rgba(0,0,0,.2);
+  --text:#1a1a1a;--text2:#666;--text3:#aaa;
+  --purple:#534AB7;--purple-l:#EEEDFE;--purple-d:#3C3489;
+  --green:#0F6E56;--green-l:#E1F5EE;
+  --amber:#854F0B;--amber-l:#FAEEDA;
+  --red:#A32D2D;--red-l:#FCEBEB;
+  --blue:#185FA5;--blue-l:#E6F1FB;
+  --pink:#993556;--pink-l:#FBEAF0;
+  --r:8px;--rl:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1c1c;--bg2:#242424;--bg3:#2e2e2e;
+    --border:rgba(255,255,255,.1);--border2:rgba(255,255,255,.2);
+    --text:#f0f0f0;--text2:#999;--text3:#555;
+    --purple-l:#26215C;--purple-d:#AFA9EC;
+    --green-l:#04342C;--amber-l:#412402;--red-l:#501313;
+    --blue-l:#042C53;--pink-l:#4B1528;
+  }
+}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;height:100vh;overflow:hidden}
+.app{display:flex;height:100vh;overflow:hidden}
+
+/* Sidebar */
+.sidebar{width:220px;flex-shrink:0;background:var(--bg2);border-right:.5px solid var(--border);display:flex;flex-direction:column}
+.logo{padding:14px 16px;border-bottom:.5px solid var(--border);font-weight:500;font-size:14px;display:flex;align-items:center;gap:8px}
+.logo i{font-size:18px;color:var(--purple)}
+.logo span{color:var(--purple)}
+.sidenav{flex:1;padding:8px;overflow-y:auto}
+.nav-section{font-size:10px;color:var(--text3);padding:12px 10px 4px;letter-spacing:.06em;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);cursor:pointer;color:var(--text2);font-size:13px;transition:background .1s,color .1s;user-select:none}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:var(--purple-l);color:var(--purple-d);font-weight:500}
+.nav-item i{font-size:16px}
+.nav-badge{margin-left:auto;font-size:10px;padding:1px 7px;border-radius:99px;background:var(--purple-l);color:var(--purple-d);font-weight:500;display:none}
+.nav-badge.show{display:inline}
+.sidefooter{padding:10px;border-top:.5px solid var(--border)}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{padding:10px 20px;border-bottom:.5px solid var(--border);display:flex;align-items:center;gap:10px}
+.topbar h1{font-size:14px;font-weight:500;flex:1}
+.content{flex:1;overflow-y:auto;padding:20px}
+.panel{display:none}
+.panel.active{display:block}
+
+/* Steps */
+.steps{display:flex;border:.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px}
+.step{flex:1;padding:7px 10px;text-align:center;font-size:12px;color:var(--text3);border-right:.5px solid var(--border);cursor:pointer;transition:background .1s}
+.step:last-child{border-right:none}
+.step:hover{background:var(--bg2);color:var(--text2)}
+.step.active{background:var(--purple-l);color:var(--purple-d);font-weight:500}
+.step.done{background:var(--green-l);color:var(--green)}
+
+/* Cards */
+.card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--rl);padding:16px;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:500;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.card-title i{font-size:16px;color:var(--purple)}
+
+/* Upload */
+.uzone{border:1.5px dashed var(--border2);border-radius:var(--rl);background:var(--bg2);padding:20px;text-align:center;cursor:pointer;position:relative;transition:border-color .15s,background .15s}
+.uzone:hover,.uzone.over{border-color:var(--purple);background:var(--purple-l)}
+.uzone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.uzone i{font-size:24px;color:var(--text3);display:block;margin-bottom:4px}
+.uzone p{font-size:12px;color:var(--text3)}
+.uzone small{font-size:11px;color:var(--text3)}
+.img-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.img-item{width:76px;height:76px;border-radius:var(--r);overflow:hidden;position:relative;border:.5px solid var(--border);flex-shrink:0}
+.img-item img{width:100%;height:100%;object-fit:cover}
+.img-item button{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+
+/* Forms */
+.row{display:flex;gap:10px;margin-bottom:12px}
+.fg{flex:1;min-width:0}
+.fg label{display:block;font-size:11px;color:var(--text2);margin-bottom:3px}
+.fg input,.fg select,.fg textarea{width:100%;padding:7px 10px;border:.5px solid var(--border2);border-radius:var(--r);background:var(--bg);color:var(--text);font-size:13px;font-family:inherit}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 2px rgba(83,74,183,.12)}
+.fg textarea{resize:vertical;min-height:64px;line-height:1.5}
+
+/* Gender toggle */
+.gtoggle{display:flex;gap:8px}
+.gbtn{flex:1;padding:10px 8px;border:1.5px solid var(--border2);border-radius:var(--r);background:var(--bg);cursor:pointer;text-align:center;transition:all .12s;font-size:13px;color:var(--text2);font-family:inherit}
+.gbtn i{font-size:20px;display:block;margin-bottom:2px}
+.gbtn.sel.girl{background:var(--pink-l);border-color:#D4537E;color:var(--pink)}
+.gbtn.sel.boy{background:var(--blue-l);border-color:#378ADD;color:var(--blue)}
+
+/* Chips */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chip{font-size:12px;padding:4px 10px;border-radius:99px;border:.5px solid var(--border2);background:var(--bg);color:var(--text2);cursor:pointer;transition:all .12s;user-select:none}
+.chip:hover{border-color:var(--purple);color:var(--text)}
+.chip.sel{background:var(--purple);border-color:var(--purple);color:#fff}
+
+/* Buttons */
+.btn{padding:7px 13px;border-radius:var(--r);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .12s;font-family:inherit;white-space:nowrap}
+.btn:hover{background:var(--bg3)}
+.btn.primary{background:var(--purple);border-color:var(--purple);color:#fff}
+.btn.primary:hover{opacity:.88;background:var(--purple)}
+.btn.primary:disabled{opacity:.4;cursor:not-allowed}
+.btn.danger{border-color:var(--red);color:var(--red)}
+.btn.danger:hover{background:var(--red-l)}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* Tabs */
+.tabbar{display:flex;gap:4px;margin-bottom:12px;border-bottom:.5px solid var(--border);padding-bottom:8px}
+.tab{font-size:12px;padding:4px 11px;border-radius:var(--r);cursor:pointer;color:var(--text2);border:none;background:none;font-family:inherit}
+.tab:hover{background:var(--bg2)}
+.tab.active{background:var(--purple-l);color:var(--purple-d);font-weight:500}
+
+/* Status */
+.status{display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:var(--r);font-size:12px;margin-bottom:10px}
+.status.info{background:var(--purple-l);color:var(--purple-d)}
+.status.ok{background:var(--green-l);color:var(--green)}
+.status.warn{background:var(--amber-l);color:var(--amber)}
+.status.err{background:var(--red-l);color:var(--red)}
+
+/* Result */
+.result-area{background:var(--bg2);border-radius:var(--r);padding:14px;font-size:12px;line-height:1.75;white-space:pre-wrap;word-break:break-word;font-family:'SFMono-Regular',Consolas,monospace;min-height:100px;color:var(--text)}
+
+/* Analysis grid */
+.agrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px}
+.aitem{background:var(--bg2);border-radius:var(--r);padding:8px 10px}
+.aitem .al{font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px}
+.aitem .av{font-size:12px;font-weight:500}
+
+/* Template preview */
+.tprev{font-size:11px;line-height:1.65;color:var(--text2);background:var(--bg2);border-radius:var(--r);padding:10px;border:.5px dashed var(--border2)}
+.tprev em{color:var(--purple-d);font-style:normal;font-weight:500}
+
+/* Summary table */
+.sumtable{width:100%;border-collapse:collapse;font-size:12px}
+.sumtable td{padding:3px 0}
+.sumtable td:first-child{width:80px;color:var(--text3)}
+
+/* Badge */
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500;vertical-align:middle}
+.bp{background:var(--purple-l);color:var(--purple-d)}
+.bg{background:var(--green-l);color:var(--green)}
+.ba{background:var(--amber-l);color:var(--amber)}
+
+/* History / Queue items */
+.hist-item{padding:10px;border:.5px solid var(--border);border-radius:var(--r);margin-bottom:8px;cursor:pointer;transition:background .1s}
+.hist-item:hover{background:var(--bg2)}
+.hist-time{font-size:11px;color:var(--text3)}
+.hist-prev{font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.qitem{display:flex;align-items:center;gap:8px;padding:8px 10px;border:.5px solid var(--border);border-radius:var(--r);margin-bottom:6px;font-size:12px}
+.qnum{width:22px;height:22px;border-radius:50%;background:var(--purple-l);color:var(--purple-d);font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.qtext{flex:1;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Empty state */
+.empty{text-align:center;padding:28px 20px;color:var(--text3)}
+.empty i{font-size:32px;display:block;margin-bottom:8px}
+.empty p{font-size:13px}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:100}
+.overlay.open{display:flex}
+.modal{background:var(--bg);border-radius:var(--rl);padding:20px;width:440px;max-width:92vw;border:.5px solid var(--border)}
+.modal-title{font-size:15px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+
+/* Spinner */
+.spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+hr.div{border:none;border-top:.5px solid var(--border);margin:14px 0}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
 </head>
-<body class="bg-slate-50 min-h-screen">
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useCallback, useRef, useEffect } = React;
+<body>
+<div class="app">
 
-/* ── CONSTANTS ──────────────────────────────────────────────────────────── */
-const POSE_OPTIONS = [
-  { value:'front',       label:'정면',        en:'front-facing, looking at camera' },
-  { value:'45degree',    label:'45도 측면',   en:'45-degree angle, slight side profile' },
-  { value:'handPocket',  label:'손 주머니',   en:'standing casually with both hands in pockets' },
-  { value:'lookingBack', label:'뒤돌아보기',  en:'turned away, looking back over the shoulder' },
-  { value:'custom',      label:'커스텀',      en:null },
-];
-const EXPRESSION_OPTIONS = [
-  { value:'neutral', label:'무표정', en:'calm neutral expression, relaxed' },
-  { value:'smile',   label:'미소',   en:'gentle natural smile' },
-  { value:'playful', label:'발랄한', en:'bright playful and cheerful expression' },
-  { value:'shy',     label:'수줍은', en:'soft shy expression, slight smile' },
-  { value:'custom',  label:'커스텀', en:null },
-];
-const COMPOSITION_OPTIONS = [
-  { value:'fullBody',  label:'전신',     en:'full body shot, head to toe' },
-  { value:'upperBody', label:'상반신',   en:'upper body shot, waist up' },
-  { value:'aboveKnee', label:'무릎 위',  en:'three-quarter shot, above the knee' },
-  { value:'closeup',   label:'클로즈업', en:'close-up shot, chest and face' },
-  { value:'custom',    label:'커스텀',   en:null },
-];
-const BACKGROUND_OPTIONS = [
-  { value:'studioWhite',   label:'스튜디오 화이트',   en:'clean pure white studio background, seamless' },
-  { value:'horizonStudio', label:'호라이즌 스튜디오', en:'seamless horizon studio backdrop in soft light gray' },
-  { value:'outdoorNature', label:'아웃도어 자연',     en:'soft outdoor setting with natural greenery and warm light' },
-  { value:'custom',        label:'커스텀',            en:null },
-];
-const BODY_TYPE_OPTIONS = [
-  { value:'slim',   label:'슬림', en:'slim build' },
-  { value:'normal', label:'보통', en:'average build' },
-  { value:'chubby', label:'통통', en:'slightly chubby build' },
-];
+<!-- ======== SIDEBAR ======== -->
+<aside class="sidebar">
+  <div class="logo"><i class="ti ti-wand"></i><span>프롬프트</span> 생성기</div>
+  <nav class="sidenav">
+    <div class="nav-section">메뉴</div>
+    <div class="nav-item active" id="nav-gen" onclick="showPanel('gen')">
+      <i class="ti ti-sparkles"></i> 프롬프트 생성
+    </div>
+    <div class="nav-item" id="nav-batch" onclick="showPanel('batch')">
+      <i class="ti ti-stack"></i> 배치 생성
+      <span class="nav-badge" id="qbadge">0</span>
+    </div>
+    <div class="nav-section">기록</div>
+    <div class="nav-item" id="nav-hist" onclick="showPanel('hist')">
+      <i class="ti ti-history"></i> 히스토리
+      <span class="nav-badge" id="hbadge">0</span>
+    </div>
+  </nav>
+  <div class="sidefooter">
+    <div class="nav-item" onclick="openSettings()"><i class="ti ti-settings"></i> 모델 설정</div>
+  </div>
+</aside>
 
-const getLabelKo = (opts, val) => opts.find(o => o.value === val)?.label ?? '';
-const getEnStr   = (opts, val) => opts.find(o => o.value === val)?.en   ?? '';
-const LS_KEY = 'fashionModels_v1';
+<!-- ======== MAIN ======== -->
+<main class="main">
+  <div class="topbar">
+    <h1 id="ptitle">프롬프트 생성</h1>
+    <button class="btn sm" onclick="exportAllCSV()"><i class="ti ti-download"></i> 전체 CSV</button>
+  </div>
+  <div class="content">
 
-/* ── UTILITIES ──────────────────────────────────────────────────────────── */
-const uid = () => Math.random().toString(36).slice(2, 9);
+    <!-- ===== GENERATE PANEL ===== -->
+    <div class="panel active" id="panel-gen">
+      <div class="steps">
+        <div class="step active" id="st0" onclick="goStep(0)">1 · 모델</div>
+        <div class="step" id="st1" onclick="goStep(1)">2 · 스타일</div>
+        <div class="step" id="st2" onclick="goStep(2)">3 · 의류&amp;배경</div>
+        <div class="step" id="st3" onclick="goStep(3)">4 · 생성</div>
+      </div>
 
-const toBase64 = file => new Promise((res, rej) => {
-  const r = new FileReader();
-  r.onload = e => res(e.target.result);
-  r.onerror = rej;
-  r.readAsDataURL(file);
+      <!-- STEP 0 : MODEL -->
+      <div id="sp0">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-user-circle"></i> 모델 이미지</div>
+          <div class="uzone" id="mzone">
+            <input type="file" accept="image/*" multiple id="mfile">
+            <i class="ti ti-user-plus"></i>
+            <p>모델 이미지 업로드</p>
+            <small>JPG/PNG · 다중 선택 가능 · 드래그&amp;드롭 지원</small>
+          </div>
+          <div class="img-grid" id="mgrid"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-id-badge-2"></i> 모델 메타데이터</div>
+          <div style="margin-bottom:14px">
+            <div class="fg" style="margin-bottom:8px"><label>성별</label></div>
+            <div class="gtoggle">
+              <button class="gbtn girl sel" id="gbtn-girl" onclick="setGender('girl')">
+                <i class="ti ti-gender-female"></i>여아
+              </button>
+              <button class="gbtn boy" id="gbtn-boy" onclick="setGender('boy')">
+                <i class="ti ti-gender-male"></i>남아
+              </button>
+            </div>
+          </div>
+          <div class="row">
+            <div class="fg">
+              <label>나이 (세)</label>
+              <input type="number" id="age" value="5" min="1" max="15">
+            </div>
+            <div class="fg">
+              <label>체형</label>
+              <select id="body">
+                <option value="slim, slender build">슬림</option>
+                <option value="average build" selected>보통</option>
+                <option value="chubby, fuller build">통통</option>
+              </select>
+            </div>
+          </div>
+          <div class="fg">
+            <label>추가 특징 (선택) — 예: short bob hair, tall for age</label>
+            <input type="text" id="mextra" placeholder="자유 입력">
+          </div>
+        </div>
+        <div class="btnrow">
+          <button class="btn primary" onclick="goStep(1)">다음 <i class="ti ti-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 1 : STYLE -->
+      <div id="sp1" style="display:none">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-run"></i> 포즈</div>
+          <div class="chips" id="pose-chips">
+            <div class="chip sel" data-val="front-facing, standing straight, arms at sides">정면 직립</div>
+            <div class="chip" data-val="45-degree angle, slight body turn">45도 앵글</div>
+            <div class="chip" data-val="walking forward, one foot stepping ahead">워킹</div>
+            <div class="chip" data-val="one hand in pocket, relaxed stance">한 손 주머니</div>
+            <div class="chip" data-val="sitting on floor, legs crossed">앉은 자세</div>
+            <div class="chip" data-val="both arms raised playfully above head">팔 올린 자세</div>
+            <div class="chip" data-val="back view, looking over shoulder at camera">백뷰</div>
+            <div class="chip" data-val="jumping in the air, energetic, legs bent">점프</div>
+            <div class="chip" data-val="crouching low, playful pose">쭈그린 자세</div>
+          </div>
+          <div class="fg"><label>직접 입력 (선택)</label><input type="text" id="pose-c" placeholder="예: leaning against wall, one leg slightly bent"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-mood-smile"></i> 표정</div>
+          <div class="chips" id="expr-chips">
+            <div class="chip sel" data-val="neutral, natural, relaxed expression">자연스러운 표정</div>
+            <div class="chip" data-val="soft gentle smile">부드러운 미소</div>
+            <div class="chip" data-val="bright happy smile, showing teeth">밝은 미소</div>
+            <div class="chip" data-val="playful fun expression, slight smirk">장난스러운</div>
+            <div class="chip" data-val="serious focused editorial look">시리어스</div>
+            <div class="chip" data-val="shy, slightly downward gaze">수줍은 표정</div>
+            <div class="chip" data-val="surprised wide-eyed expression">놀란 표정</div>
+          </div>
+          <div class="fg"><label>직접 입력 (선택)</label><input type="text" id="expr-c" placeholder="예: laughing naturally, candid moment"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-camera"></i> 구도 / 카메라 앵글</div>
+          <div class="chips" id="comp-chips">
+            <div class="chip sel" data-val="full-body shot, head to toe">전신</div>
+            <div class="chip" data-val="upper-body shot, from waist up">상반신</div>
+            <div class="chip" data-val="three-quarter shot, from mid-thigh up">3/4 컷</div>
+            <div class="chip" data-val="close-up portrait, chest up">클로즈업</div>
+            <div class="chip" data-val="low angle shot, camera looking up slightly">로우 앵글</div>
+            <div class="chip" data-val="side profile, 90-degree angle">사이드 프로필</div>
+          </div>
+          <div class="fg"><label>직접 입력 (선택)</label><input type="text" id="comp-c" placeholder="예: overhead flat lay, birds eye view"></div>
+        </div>
+        <div class="btnrow">
+          <button class="btn" onclick="goStep(0)"><i class="ti ti-arrow-left"></i> 이전</button>
+          <button class="btn primary" onclick="goStep(2)">다음 <i class="ti ti-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 2 : CLOTHING & BACKGROUND -->
+      <div id="sp2" style="display:none">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-shirt"></i> 의류 이미지</div>
+          <div class="uzone" id="czone">
+            <input type="file" accept="image/*" multiple id="cfile">
+            <i class="ti ti-shirt"></i>
+            <p>의류 이미지 업로드 (다중 가능)</p>
+            <small>업로드 후 AI가 소재·색상·핏 자동 분석</small>
+          </div>
+          <div class="img-grid" id="cgrid"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-photo"></i> 배경</div>
+          <div class="tabbar">
+            <button class="tab active" id="bgtab-preset" onclick="setBgTab('preset')">프리셋</button>
+            <button class="tab" id="bgtab-text" onclick="setBgTab('text')">텍스트</button>
+            <button class="tab" id="bgtab-img" onclick="setBgTab('img')">이미지</button>
+          </div>
+          <div id="bgp-preset">
+            <div class="chips" id="bg-chips">
+              <div class="chip sel" data-val="pure white studio background, seamless white paper backdrop">화이트 스튜디오</div>
+              <div class="chip" data-val="light grey gradient studio backdrop">라이트 그레이 스튜디오</div>
+              <div class="chip" data-val="horizon studio background, soft gradient floor sweep">호라이즌 스튜디오</div>
+              <div class="chip" data-val="outdoor urban street, Seoul city background, sunny daytime">도심 스트리트</div>
+              <div class="chip" data-val="natural park, soft bokeh green trees in background">자연·공원 배경</div>
+              <div class="chip" data-val="sandy beach background, golden hour warm light">해변·골든아워</div>
+              <div class="chip" data-val="cherry blossom trees, spring park, pink petals">벚꽃 공원</div>
+              <div class="chip" data-val="minimal cafe interior, warm beige tones, wooden furniture">카페 인테리어</div>
+            </div>
+          </div>
+          <div id="bgp-text" style="display:none">
+            <div class="fg"><label>배경 설명 (영어 권장)</label>
+            <textarea id="bg-text" placeholder="예: minimalist white studio, soft diffused natural light from large window on left side, clean floor..."></textarea></div>
+          </div>
+          <div id="bgp-img" style="display:none">
+            <div class="uzone" id="bgzone">
+              <input type="file" accept="image/*" id="bgfile">
+              <i class="ti ti-photo-up"></i>
+              <p>배경 참고 이미지 업로드</p>
+            </div>
+            <div class="img-grid" id="bggrid"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-palette"></i> 스타일 참고 이미지 <span class="badge ba" style="margin-left:4px;font-size:10px">선택</span></div>
+          <div class="uzone" id="szone">
+            <input type="file" accept="image/*" multiple id="sfile">
+            <i class="ti ti-star"></i>
+            <p>액세서리·스타일 참고 이미지 (선택)</p>
+            <small>모자, 가방, 신발 등 스타일 레퍼런스</small>
+          </div>
+          <div class="img-grid" id="sgrid"></div>
+        </div>
+        <div class="btnrow">
+          <button class="btn" onclick="goStep(1)"><i class="ti ti-arrow-left"></i> 이전</button>
+          <button class="btn primary" onclick="goStep(3)">다음 <i class="ti ti-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 3 : GENERATE -->
+      <div id="sp3" style="display:none">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-list-check"></i> 설정 요약</div>
+          <table class="sumtable" id="summary"></table>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-file-text"></i> 적용 템플릿 <span class="badge bp" id="tpl-badge" style="margin-left:4px;font-size:10px">여아 안전 모드</span></div>
+          <div class="tprev" id="tpl-prev"></div>
+        </div>
+        <div id="analysis-box" style="display:none">
+          <div class="card">
+            <div class="card-title"><i class="ti ti-analyze"></i> 의류 AI 분석 결과</div>
+            <div class="agrid" id="agrid"></div>
+          </div>
+        </div>
+        <div id="sbox"></div>
+        <div class="btnrow">
+          <button class="btn" onclick="goStep(2)"><i class="ti ti-arrow-left"></i> 이전</button>
+          <button class="btn primary" id="genbtn" onclick="generate()">
+            <i class="ti ti-wand"></i> 프롬프트 생성
+          </button>
+          <button class="btn" onclick="addToQueue()" title="배치 큐에 현재 설정 추가">
+            <i class="ti ti-playlist-add"></i> 배치에 추가
+          </button>
+        </div>
+        <div id="result-box" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="card-title"><i class="ti ti-sparkles"></i> 생성된 프롬프트</div>
+            <div class="result-area" id="result"></div>
+            <div class="btnrow">
+              <button class="btn primary sm" onclick="copyResult()"><i class="ti ti-copy"></i> 복사</button>
+              <button class="btn sm" onclick="saveHist()"><i class="ti ti-bookmark"></i> 히스토리 저장</button>
+              <button class="btn sm" onclick="exportOne()"><i class="ti ti-table-export"></i> CSV 다운로드</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /panel-gen -->
+
+    <!-- ===== BATCH PANEL ===== -->
+    <div class="panel" id="panel-batch">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-stack"></i> 배치 큐 <span class="badge bp" id="qlabel">0개</span></div>
+        <div id="qlist"><div class="empty"><i class="ti ti-inbox"></i><p>생성 탭에서 "배치에 추가"를 클릭해<br>여러 조합을 한 번에 처리하세요.</p></div></div>
+        <div class="btnrow">
+          <button class="btn primary" id="batchbtn" onclick="runBatch()" disabled><i class="ti ti-player-play"></i> 배치 실행</button>
+          <button class="btn" onclick="clearQ()"><i class="ti ti-trash"></i> 큐 초기화</button>
+        </div>
+      </div>
+      <div id="batchresults"></div>
+    </div>
+
+    <!-- ===== HISTORY PANEL ===== -->
+    <div class="panel" id="panel-hist">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-history"></i> 생성 히스토리</div>
+        <div class="btnrow" style="margin-bottom:10px">
+          <button class="btn sm" onclick="clearHist()"><i class="ti ti-trash"></i> 전체 삭제</button>
+          <button class="btn sm" onclick="exportAllCSV()"><i class="ti ti-download"></i> CSV 내보내기</button>
+        </div>
+        <div id="histlist"><div class="empty"><i class="ti ti-history"></i><p>저장된 히스토리가 없습니다.</p></div></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+</div><!-- /app -->
+
+<!-- Settings Modal -->
+<div class="overlay" id="settings-overlay">
+  <div class="modal">
+    <div class="modal-title">
+      환경변수 안내
+      <button class="btn sm" onclick="closeSettings()" style="border:none;padding:4px"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:14px">
+      <p>API 키는 <strong>Netlify 환경변수</strong>로 관리됩니다.</p>
+      <p style="margin-top:8px">설정 방법:</p>
+      <ol style="margin:6px 0 0 16px;color:var(--text2)">
+        <li>Netlify 대시보드 → 해당 사이트 클릭</li>
+        <li>Site settings → Environment variables</li>
+        <li><strong>ANTHROPIC_API_KEY</strong> 키로 값 추가</li>
+        <li>Deploys → Trigger deploy</li>
+      </ol>
+    </div>
+    <div class="fg" style="margin-bottom:10px">
+      <label>사용 모델</label>
+      <select id="amodel">
+        <option value="claude-sonnet-4-20250514" selected>claude-sonnet-4 (권장)</option>
+        <option value="claude-opus-4-5">claude-opus-4.5 (고품질·느림)</option>
+        <option value="claude-haiku-4-5-20251001">claude-haiku-4.5 (빠름·저비용)</option>
+      </select>
+    </div>
+    <div class="btnrow">
+      <button class="btn primary" onclick="saveKey()"><i class="ti ti-check"></i> 저장</button>
+      <button class="btn" onclick="closeSettings()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// STATE
+// ==========================================
+const S = {
+  apiKey: localStorage.getItem('vmk') || '',
+  model: localStorage.getItem('vmmodel') || 'claude-sonnet-4-20250514',
+  gender: 'girl',
+  mImgs: [], cImgs: [], sImgs: [],
+  bgB64: null, bgMime: null,
+  bgTab: 'preset',
+  step: 0,
+  queue: [],
+  hist: JSON.parse(localStorage.getItem('vmh') || '[]'),
+  lastPrompt: null, lastAna: null,
+};
+
+// ==========================================
+// BOOT
+// ==========================================
+window.addEventListener('DOMContentLoaded', () => {
+  setupUpload('mfile','mzone','mgrid', S.mImgs);
+  setupUpload('cfile','czone','cgrid', S.cImgs);
+  setupUpload('sfile','szone','sgrid', S.sImgs);
+  setupSingleUpload('bgfile','bgzone','bggrid');
+  ['pose-chips','expr-chips','comp-chips','bg-chips'].forEach(setupChips);
+  if (S.apiKey) document.getElementById('akey').value = S.apiKey;
+  if (S.model) document.getElementById('amodel').value = S.model;
+  updateBadges();
 });
 
-const compressImage = (base64, maxSize = 600, quality = 0.78) =>
-  new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      let w = img.width, h = img.height;
-      if (w > maxSize || h > maxSize) {
-        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
-        else       { w = Math.round(w * maxSize / h); h = maxSize; }
+// ==========================================
+// NAV
+// ==========================================
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  const t = {gen:'프롬프트 생성', batch:'배치 생성', hist:'히스토리'};
+  document.getElementById('ptitle').textContent = t[name] || '';
+  if (name === 'hist') renderHist();
+  if (name === 'batch') renderQ();
+}
+
+function goStep(n) {
+  S.step = n;
+  for (let i = 0; i < 4; i++) {
+    const sp = document.getElementById('sp' + i);
+    const st = document.getElementById('st' + i);
+    if (sp) sp.style.display = i === n ? 'block' : 'none';
+    if (st) { st.classList.remove('active','done'); st.classList.add(i === n ? 'active' : i < n ? 'done' : ''); }
+  }
+  if (n === 3) refreshSummary();
+}
+
+// ==========================================
+// GENDER
+// ==========================================
+function setGender(g) {
+  S.gender = g;
+  document.getElementById('gbtn-girl').classList.toggle('sel', g === 'girl');
+  document.getElementById('gbtn-boy').classList.toggle('sel', g === 'boy');
+}
+
+// ==========================================
+// UPLOADS
+// ==========================================
+function setupUpload(inputId, zoneId, gridId, arr) {
+  const inp = document.getElementById(inputId);
+  const zone = document.getElementById(zoneId);
+  inp.addEventListener('change', () => readFiles(inp.files, gridId, arr));
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('over'); readFiles(e.dataTransfer.files, gridId, arr); });
+}
+function readFiles(files, gridId, arr) {
+  Array.from(files).forEach(f => {
+    if (!f.type.startsWith('image/')) return;
+    const r = new FileReader();
+    r.onload = e => { arr.push({ b64: e.target.result.split(',')[1], mime: f.type, name: f.name }); renderGrid(gridId, arr); };
+    r.readAsDataURL(f);
+  });
+}
+function setupSingleUpload(inputId, zoneId, gridId) {
+  const inp = document.getElementById(inputId);
+  const zone = document.getElementById(zoneId);
+  inp.addEventListener('change', () => {
+    const f = inp.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = e => {
+      S.bgB64 = e.target.result.split(',')[1]; S.bgMime = f.type;
+      const grid = document.getElementById(gridId);
+      grid.innerHTML = `<div class="img-item"><img src="${e.target.result}"><button onclick="S.bgB64=null;S.bgMime=null;document.getElementById('${gridId}').innerHTML=''"><i class="ti ti-x"></i></button></div>`;
+    };
+    r.readAsDataURL(f);
+  });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('over'); const dt = new DataTransfer(); Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f)); inp.files = dt.files; inp.dispatchEvent(new Event('change')); });
+}
+function renderGrid(gridId, arr) {
+  const g = document.getElementById(gridId);
+  g.innerHTML = arr.map((item, i) =>
+    `<div class="img-item"><img src="data:${item.mime};base64,${item.b64}"><button onclick="removeImg('${gridId}',${i})"><i class="ti ti-x"></i></button></div>`
+  ).join('');
+}
+function removeImg(gridId, i) {
+  const map = {'mgrid':S.mImgs,'cgrid':S.cImgs,'sgrid':S.sImgs};
+  const arr = map[gridId]; if (arr) { arr.splice(i,1); renderGrid(gridId,arr); }
+}
+
+// ==========================================
+// CHIPS
+// ==========================================
+function setupChips(id) {
+  document.querySelectorAll('#' + id + ' .chip').forEach(c => {
+    c.addEventListener('click', () => {
+      document.querySelectorAll('#' + id + ' .chip').forEach(x => x.classList.remove('sel'));
+      c.classList.add('sel');
+    });
+  });
+}
+function chip(id) { const s = document.querySelector('#' + id + ' .chip.sel'); return s ? s.dataset.val : ''; }
+
+// ==========================================
+// BACKGROUND TAB
+// ==========================================
+function setBgTab(tab) {
+  S.bgTab = tab;
+  ['preset','text','img'].forEach(t => {
+    document.getElementById('bgp-' + t).style.display = t === tab ? 'block' : 'none';
+    document.getElementById('bgtab-' + t).classList.toggle('active', t === tab);
+  });
+}
+function getBg() {
+  if (S.bgTab === 'preset') return chip('bg-chips');
+  if (S.bgTab === 'text') return document.getElementById('bg-text').value.trim() || 'white studio background';
+  if (S.bgTab === 'img') return S.bgB64 ? '[배경 참고 이미지 첨부됨]' : 'white studio background';
+  return '';
+}
+
+// ==========================================
+// OPTION GETTERS
+// ==========================================
+function getPose() { return document.getElementById('pose-c').value.trim() || chip('pose-chips'); }
+function getExpr() { return document.getElementById('expr-c').value.trim() || chip('expr-chips'); }
+function getComp() { return document.getElementById('comp-c').value.trim() || chip('comp-chips'); }
+function getAge()  { return document.getElementById('age').value || '5'; }
+function getBody() { return document.getElementById('body').value; }
+function getMExtra() { return document.getElementById('mextra').value.trim(); }
+function getGenderStr() { return S.gender === 'girl' ? 'girl' : 'boy'; }
+function getGenderKo() { return S.gender === 'girl' ? '여아' : '남아'; }
+
+// ==========================================
+// SUMMARY + TEMPLATE
+// ==========================================
+function refreshSummary() {
+  const rows = [
+    ['성별·나이', `${getGenderKo()} ${getAge()}세`],
+    ['체형', document.getElementById('body').options[document.getElementById('body').selectedIndex].text + (getMExtra() ? ' / ' + getMExtra() : '')],
+    ['포즈', getPose()],
+    ['표정', getExpr()],
+    ['구도', getComp()],
+    ['배경', getBg()],
+    ['모델 이미지', S.mImgs.length + '장'],
+    ['의류 이미지', S.cImgs.length + '장'],
+    ['스타일 참고', S.sImgs.length + '장'],
+  ];
+  document.getElementById('summary').innerHTML = rows.map(([k,v]) =>
+    `<tr><td style="color:var(--text3);width:80px">${k}</td><td>${v}</td></tr>`
+  ).join('');
+
+  const isGirl = S.gender === 'girl';
+  const badge = document.getElementById('tpl-badge');
+  badge.textContent = isGirl ? '여아 안전 모드' : '남아 표준';
+  badge.className = 'badge ' + (isGirl ? 'bp' : 'bg');
+
+  document.getElementById('tpl-prev').innerHTML = getTemplate()
+    .replace(/\[([A-Z_\s]+)\]/g, '<em>[$1]</em>');
+}
+
+function getTemplate() {
+  const safety = S.gender === 'girl'
+    ? '\nSAFETY: age-appropriate, modest, non-sexualized, child-safe, fully clothed, innocent and natural depiction only. This is a children\'s fashion catalog.'
+    : '\nNote: children\'s fashion catalog, keep age-appropriate and natural.';
+  return `Reference images: [MODEL_IMAGE(S)], [CLOTHING_IMAGE(S)], [BACKGROUND_IMAGE].
+Generate a realistic fashion catalog photo of a young Korean [GENDER], age [AGE], [BODY_TYPE], wearing [CLOTHING_DESCRIPTION].
+Pose: [POSE]. Expression: [EXPRESSION]. Composition/Camera: [COMPOSITION].
+Background: [BACKGROUND].
+Style references: [STYLE_REFS].
+High quality, photorealistic, natural lighting, clean minimal studio style, professional children's fashion catalog photography.${safety}`;
+}
+
+// ==========================================
+// GENERATE
+// ==========================================
+async function generate() {
+  const btn = document.getElementById('genbtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> 분석 중...';
+  setStatus('의류 이미지를 AI로 분석하는 중...', 'info');
+  try {
+    let clothDesc = S.cImgs.length ? await analyzeClothing(S.cImgs) : '(의류 이미지 없음)';
+    S.lastAna = clothDesc;
+    const prompt = buildPrompt(clothDesc);
+    S.lastPrompt = prompt;
+    document.getElementById('result').textContent = prompt;
+    document.getElementById('result-box').style.display = 'block';
+    setStatus('프롬프트 생성 완료! 복사 후 AI 이미지 생성 도구에 붙여넣으세요.', 'ok');
+  } catch(e) {
+    setStatus('오류: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-wand"></i> 프롬프트 재생성';
+  }
+}
+
+async function analyzeClothing(imgs) {
+  const content = imgs.map(img => ({
+    type: 'image',
+    source: { type: 'base64', media_type: img.mime, data: img.b64 }
+  }));
+  content.push({ type: 'text', text: 'Analyze the clothing item(s) in the image(s). Return ONLY valid JSON with no markdown:\n{"material":"...","color":"...","fit":"...","neckline":"...","graphics":"...","summary":"1-sentence clothing description for an AI image generation prompt"}' });
+
+  const res = await callAPI([{ role:'user', content }]);
+  const raw = res.replace(/```json|```/g,'').trim();
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { return raw; }
+
+  const fields = [{l:'소재',k:'material'},{l:'색상',k:'color'},{l:'핏',k:'fit'},{l:'넥라인',k:'neckline'},{l:'그래픽/패턴',k:'graphics'}];
+  document.getElementById('agrid').innerHTML = fields.map(f =>
+    `<div class="aitem"><div class="al">${f.l}</div><div class="av">${parsed[f.k]||'-'}</div></div>`
+  ).join('');
+  document.getElementById('analysis-box').style.display = 'block';
+  return parsed.summary || raw;
+}
+
+function buildPrompt(clothDesc) {
+  const mRef  = S.mImgs.length ? `[모델 이미지 ${S.mImgs.length}장 첨부]` : '[모델 이미지 없음]';
+  const cRef  = S.cImgs.length ? `[의류 이미지 ${S.cImgs.length}장 첨부]` : '[의류 이미지 없음]';
+  const bgRef = S.bgB64 ? '[배경 이미지 첨부]' : '';
+  const sRef  = S.sImgs.length ? `[스타일 참고 ${S.sImgs.length}장 첨부]` : '';
+  const refs  = [mRef, cRef, bgRef, sRef].filter(Boolean).join(', ');
+  const extra = getMExtra() ? `, ${getMExtra()}` : '';
+  const safety = S.gender === 'girl'
+    ? '\nSAFETY REQUIREMENTS: age-appropriate, modest, non-sexualized, child-safe depiction, fully clothed, natural and innocent portrayal. Children\'s fashion catalog only.'
+    : '\nNote: children\'s fashion catalog — keep age-appropriate and natural.';
+
+  return `Reference images: ${refs}.
+Generate a realistic fashion catalog photo of a young Korean ${getGenderStr()}, age ${getAge()}, ${getBody()}${extra}, wearing ${clothDesc}.
+Pose: ${getPose()}. Expression: ${getExpr()}. Composition: ${getComp()}.
+Background: ${getBg()}.${sRef ? '\nStyle/accessory references: ' + sRef + '.' : ''}
+High quality, photorealistic, natural lighting, clean minimal studio style, professional children's fashion catalog photography.${safety}`;
+}
+
+async function callAPI(messages) {
+  const res = await fetch('/.netlify/functions/claude', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'anthropic-version':'2023-06-01' },
+    body: JSON.stringify({ model: S.model, max_tokens: 600, messages })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `HTTP ${res.status}`); }
+  const data = await res.json();
+  return data.content.map(i => i.text || '').join('');
+}
+
+// ==========================================
+// STATUS
+// ==========================================
+function setStatus(msg, type) {
+  const icons = {info:'loader-2',ok:'check',warn:'alert-triangle',err:'alert-circle'};
+  document.getElementById('sbox').innerHTML = msg
+    ? `<div class="status ${type}"><i class="ti ti-${icons[type]||'info-circle'}"></i> ${msg}</div>` : '';
+}
+
+// ==========================================
+// COPY / SAVE / CSV
+// ==========================================
+function copyResult() {
+  navigator.clipboard.writeText(S.lastPrompt||'').then(() => {
+    setStatus('클립보드에 복사됐습니다!', 'ok');
+    setTimeout(() => setStatus('',''), 2000);
+  });
+}
+
+function saveHist() {
+  if (!S.lastPrompt) return;
+  pushHist({ time: new Date().toLocaleString('ko-KR'), gender: getGenderKo(), age: getAge()+'세', pose: getPose(), analysis: S.lastAna||'', prompt: S.lastPrompt });
+  setStatus('히스토리에 저장됐습니다.', 'ok');
+  setTimeout(() => setStatus('',''), 2000);
+}
+
+function pushHist(entry) {
+  S.hist.unshift(entry);
+  if (S.hist.length > 100) S.hist.pop();
+  localStorage.setItem('vmh', JSON.stringify(S.hist));
+  updateBadges();
+}
+
+function updateBadges() {
+  const hb = document.getElementById('hbadge');
+  hb.textContent = S.hist.length;
+  hb.classList.toggle('show', S.hist.length > 0);
+  const qb = document.getElementById('qbadge');
+  qb.textContent = S.queue.length;
+  qb.classList.toggle('show', S.queue.length > 0);
+}
+
+function toCSV(rows) {
+  const hdr = ['시간','성별','나이','포즈','의류 분석','프롬프트'];
+  const lines = [hdr, ...rows.map(e => [e.time, e.gender, e.age, e.pose, e.analysis||'', e.prompt||''])];
+  return lines.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+}
+
+function dlCSV(content, name) {
+  const blob = new Blob(['\uFEFF' + content], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+}
+
+function exportOne() {
+  if (!S.lastPrompt) return;
+  dlCSV(toCSV([{time:new Date().toLocaleString('ko-KR'), gender:getGenderKo(), age:getAge()+'세', pose:getPose(), analysis:S.lastAna||'', prompt:S.lastPrompt}]), `prompt_${Date.now()}.csv`);
+}
+
+function exportAllCSV() {
+  if (!S.hist.length) { alert('저장된 히스토리가 없습니다.'); return; }
+  dlCSV(toCSV(S.hist), `prompts_history_${Date.now()}.csv`);
+}
+
+// ==========================================
+// HISTORY UI
+// ==========================================
+function renderHist() {
+  const el = document.getElementById('histlist');
+  if (!S.hist.length) { el.innerHTML = '<div class="empty"><i class="ti ti-history"></i><p>저장된 히스토리가 없습니다.</p></div>'; return; }
+  el.innerHTML = S.hist.map((e, i) => `
+    <div class="hist-item" onclick="loadHist(${i})">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+        <span class="badge ${e.gender==='여아'?'bp':'bg'}">${e.gender} ${e.age}</span>
+        <span class="hist-time">${e.time}</span>
+      </div>
+      <div class="hist-prev">${e.prompt}</div>
+    </div>`).join('');
+}
+
+function loadHist(i) {
+  const e = S.hist[i]; if (!e) return;
+  S.lastPrompt = e.prompt; S.lastAna = e.analysis;
+  showPanel('gen'); goStep(3);
+  document.getElementById('result').textContent = e.prompt;
+  document.getElementById('result-box').style.display = 'block';
+  setStatus('히스토리에서 불러왔습니다.', 'info');
+}
+
+function clearHist() {
+  if (!confirm('히스토리를 모두 삭제할까요?')) return;
+  S.hist = []; localStorage.setItem('vmh','[]'); updateBadges(); renderHist();
+}
+
+// ==========================================
+// QUEUE / BATCH
+// ==========================================
+function addToQueue() {
+  const entry = {
+    id: Date.now(),
+    gender: S.gender, age: getAge(), body: getBody(), mextra: getMExtra(),
+    pose: getPose(), expr: getExpr(), comp: getComp(), bg: getBg(),
+    mImgs: [...S.mImgs], cImgs: [...S.cImgs], sImgs: [...S.sImgs],
+    bgB64: S.bgB64, bgMime: S.bgMime,
+    label: `${getGenderKo()} ${getAge()}세 / ${getPose().substring(0,20)}`,
+  };
+  S.queue.push(entry);
+  updateBadges();
+  setStatus(`배치 큐에 추가됐습니다 (총 ${S.queue.length}개).`, 'ok');
+  setTimeout(() => setStatus('',''), 2500);
+}
+
+function renderQ() {
+  document.getElementById('qlabel').textContent = S.queue.length + '개';
+  document.getElementById('batchbtn').disabled = S.queue.length === 0;
+  const el = document.getElementById('qlist');
+  if (!S.queue.length) { el.innerHTML = '<div class="empty"><i class="ti ti-inbox"></i><p>생성 탭에서 "배치에 추가"를 눌러<br>여러 조합을 한 번에 처리하세요.</p></div>'; return; }
+  el.innerHTML = S.queue.map((q, i) => `
+    <div class="qitem">
+      <div class="qnum">${i+1}</div>
+      <div class="qtext">${q.label}</div>
+      <button class="btn sm danger" onclick="removeQ(${i})"><i class="ti ti-x"></i></button>
+    </div>`).join('');
+}
+
+function removeQ(i) { S.queue.splice(i,1); updateBadges(); renderQ(); }
+function clearQ() { S.queue = []; updateBadges(); renderQ(); }
+
+async function runBatch() {
+  if (!S.queue.length) return;
+  const btn = document.getElementById('batchbtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 실행 중...';
+  const container = document.getElementById('batchresults');
+  container.innerHTML = '';
+  const results = [];
+
+  for (let i = 0; i < S.queue.length; i++) {
+    const q = S.queue[i];
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<div class="card-title">#${i+1} ${q.label} <span class="badge ba">처리 중...</span></div><div class="result-area" style="color:var(--text3)">분석 중...</div>`;
+    container.appendChild(card);
+
+    try {
+      let desc = '(의류 없음)';
+      if (q.cImgs.length) {
+        const content = q.cImgs.map(img => ({type:'image',source:{type:'base64',media_type:img.mime,data:img.b64}}));
+        content.push({type:'text',text:'Analyze clothing, return JSON only: {material,color,fit,neckline,graphics,summary}. No markdown.'});
+        const raw = await callAPI([{role:'user',content}]);
+        try { desc = JSON.parse(raw.replace(/```json|```/g,'').trim()).summary || raw; } catch { desc = raw; }
       }
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(c.toDataURL('image/jpeg', quality));
-    };
-    img.src = base64;
-  });
+      const gStr = q.gender === 'girl' ? 'girl' : 'boy';
+      const gKo = q.gender === 'girl' ? '여아' : '남아';
+      const mRef = q.mImgs.length ? `[모델 이미지 ${q.mImgs.length}장 첨부]` : '[모델 이미지 없음]';
+      const cRef = q.cImgs.length ? `[의류 이미지 ${q.cImgs.length}장 첨부]` : '[의류 이미지 없음]';
+      const bgR = q.bgB64 ? '[배경 이미지 첨부]' : '';
+      const refs = [mRef,cRef,bgR].filter(Boolean).join(', ');
+      const extra = q.mextra ? `, ${q.mextra}` : '';
+      const safety = q.gender === 'girl'
+        ? '\nSAFETY: age-appropriate, modest, non-sexualized, child-safe, fully clothed.'
+        : '\nNote: children\'s fashion catalog, age-appropriate.';
+      const prompt = `Reference images: ${refs}.\nGenerate a realistic fashion catalog photo of a young Korean ${gStr}, age ${q.age}, ${q.body}${extra}, wearing ${desc}.\nPose: ${q.pose}. Expression: ${q.expr}. Composition: ${q.comp}.\nBackground: ${q.bg}.\nHigh quality, photorealistic, natural lighting, professional children's fashion catalog photography.${safety}`;
 
-const newClothingItem = () => ({ id:uid(), images:[], material:'', color:'', fit:'', neckline:'', graphic:'' });
-const newModelData    = () => ({ name:'', images:[], gender:'female', age:8, bodyType:'normal' });
+      const entry = {time:new Date().toLocaleString('ko-KR'),gender:gKo,age:q.age+'세',pose:q.pose,analysis:desc,prompt};
+      results.push(entry);
+      pushHist(entry);
 
-const newSet = (n = 1) => ({
-  id: uid(),
-  label: `세트 ${n}`,
-  open: { model:true, pose:false, expression:false, composition:false, background:false, clothing:false, style:false },
-  modelSource: 'direct',
-  selectedModelId: null,
-  modelImages: [], gender:'female', age:8, bodyType:'normal',
-  pose:'front', poseCustom:'',
-  expression:'neutral', expressionCustom:'',
-  composition:'fullBody', compositionCustom:'',
-  background:'studioWhite', bgImage:null, bgCustom:'',
-  clothingItems: [newClothingItem()],
-  styleImages:[], styleMemo:'',
-});
-
-/* ── PROMPT BUILDER ─────────────────────────────────────────────────────── */
-const buildPrompt = (set) => {
-  const gender      = set.gender === 'female' ? 'girl' : 'boy';
-  const bodyType    = getEnStr(BODY_TYPE_OPTIONS, set.bodyType);
-  const pose        = set.pose        === 'custom' ? set.poseCustom        : getEnStr(POSE_OPTIONS,        set.pose);
-  const expression  = set.expression  === 'custom' ? set.expressionCustom  : getEnStr(EXPRESSION_OPTIONS,  set.expression);
-  const composition = set.composition === 'custom' ? set.compositionCustom : getEnStr(COMPOSITION_OPTIONS, set.composition);
-  const background  = set.background  === 'custom' ? set.bgCustom          : getEnStr(BACKGROUND_OPTIONS,  set.background);
-
-  const refs = [];
-  if (set.modelImages.length) refs.push(`${set.modelImages.length} model reference photo(s)`);
-  const ci = set.clothingItems.reduce((a,c) => a + c.images.length, 0);
-  if (ci)             refs.push(`${ci} clothing reference photo(s)`);
-  if (set.bgImage)    refs.push('1 background reference photo');
-  if (set.styleImages.length) refs.push(`${set.styleImages.length} style reference photo(s)`);
-  const refLine = refs.length ? `Reference images attached: ${refs.join(', ')}\n\n` : '';
-
-  const clothingLines = set.clothingItems.map((c,i) => {
-    const d = [];
-    if (c.color)    d.push(c.color);
-    if (c.material) d.push(`${c.material} fabric`);
-    if (c.fit)      d.push(`${c.fit} fit`);
-    if (c.neckline) d.push(`${c.neckline} neckline`);
-    if (c.graphic)  d.push(`with ${c.graphic}`);
-    return `  • Item ${i+1}: ${d.length ? d.join(', ') : '(see reference image)'}`;
-  }).join('\n');
-
-  const styleLine = set.styleMemo ? `\nStyle notes: ${set.styleMemo}` : '';
-  const safeMode  = set.gender === 'female' ? '\n\n[GPT Image2 safe mode template applied]' : '';
-
-  return `${refLine}Generate a realistic fashion catalog photograph of a young Korean ${gender}, age ${set.age}, with a ${bodyType}.
-
-Clothing worn:
-${clothingLines}
-
-Pose: ${pose}
-Expression: ${expression}
-Composition: ${composition}
-Background: ${background}${styleLine}
-
-Quality: high resolution, natural studio lighting, photorealistic, clean and minimal catalog style, age-appropriate and child-safe content.${safeMode}`;
-};
-
-/* ── CSV BUILDER ────────────────────────────────────────────────────────── */
-const buildCSV = (history) => {
-  const headers = ['생성시간','세트명','성별','나이','체형','포즈','표정','구도','배경','의류설명','생성프롬프트'];
-  const esc = v => `"${String(v).replace(/"/g,'""')}"`;
-  const rows = history.map(h => {
-    const m = h.meta;
-    const cs = m.clothingItems.map((c,i) =>
-      `[의류${i+1}] ${[c.color,c.material,c.fit].filter(Boolean).join('/')}`
-    ).join(' | ');
-    return [
-      h.timestamp, m.label,
-      m.gender==='female'?'여아':'남아', m.age,
-      getLabelKo(BODY_TYPE_OPTIONS,m.bodyType),
-      m.pose==='custom'?m.poseCustom:getLabelKo(POSE_OPTIONS,m.pose),
-      m.expression==='custom'?m.expressionCustom:getLabelKo(EXPRESSION_OPTIONS,m.expression),
-      m.composition==='custom'?m.compositionCustom:getLabelKo(COMPOSITION_OPTIONS,m.composition),
-      m.background==='custom'?m.bgCustom:getLabelKo(BACKGROUND_OPTIONS,m.background),
-      cs, h.prompt,
-    ].map(esc).join(',');
-  });
-  return [headers.join(','),...rows].join('\r\n');
-};
-
-/* ── BASE COMPONENTS ────────────────────────────────────────────────────── */
-function Accordion({ title, isOpen, onToggle, children }) {
-  return (
-    <div className="border border-gray-200 rounded-xl mb-3 overflow-hidden">
-      <button type="button" onClick={onToggle}
-        className="w-full flex items-center justify-between px-5 py-3.5 bg-white hover:bg-gray-50 transition-colors text-left focus:outline-none">
-        <span className="text-sm font-semibold text-gray-700">{title}</span>
-        <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen?'rotate-180':''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
-        </svg>
-      </button>
-      {isOpen && <div className="px-5 pb-5 pt-3 bg-white border-t border-gray-100 slide-in">{children}</div>}
-    </div>
-  );
-}
-
-function PillRadio({ options, value, onChange, name }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map(opt => (
-        <label key={opt.value} className={`cursor-pointer select-none px-4 py-2 rounded-full border text-sm font-medium transition-all ${
-          value===opt.value ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
-        }`}>
-          <input type="radio" name={name} value={opt.value} checked={value===opt.value} onChange={()=>onChange(opt.value)} className="sr-only"/>
-          {opt.label}
-        </label>
-      ))}
-    </div>
-  );
-}
-
-function CustomInput({ placeholder, value, onChange }) {
-  return (
-    <input type="text" placeholder={placeholder} value={value} onChange={e=>onChange(e.target.value)}
-      className="mt-3 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent"/>
-  );
-}
-
-function ImgUploader({ images, onAdd, onRemove, maxN, label, compress=false }) {
-  const ref = useRef(null);
-  const handle = async (files) => {
-    const slots = maxN - images.length;
-    if (slots <= 0) return;
-    const b64s = await Promise.all([...files].slice(0,slots).map(toBase64));
-    const final = compress ? await Promise.all(b64s.map(b=>compressImage(b))) : b64s;
-    onAdd(final);
-  };
-  return (
-    <div>
-      <div onDrop={e=>{e.preventDefault();handle(e.dataTransfer.files);}} onDragOver={e=>e.preventDefault()}
-        onClick={()=>images.length<maxN&&ref.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${
-          images.length>=maxN ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
-                              : 'border-blue-200 bg-blue-50 cursor-pointer hover:border-blue-400 hover:bg-blue-100'}`}>
-        <svg className="w-6 h-6 mx-auto mb-1 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
-            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-        </svg>
-        <p className="text-xs text-gray-500">
-          {images.length>=maxN ? `최대 ${maxN}장 완료` : `${label} (${images.length}/${maxN}) — 클릭 또는 드래그`}
-        </p>
-        <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={e=>handle(e.target.files)}/>
-      </div>
-      {images.length>0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {images.map((src,i)=>(
-            <div key={i} className="relative group">
-              <img src={src} alt="" className="w-20 h-20 object-cover rounded-lg border border-gray-200 shadow-sm"/>
-              <button type="button" onClick={()=>onRemove(i)}
-                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity">×</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── MODEL LIBRARY COMPONENTS ───────────────────────────────────────────── */
-function ModelForm({ initial, onSave, onCancel }) {
-  const [form, setForm] = useState(initial ? {
-    name:initial.name, images:initial.images,
-    gender:initial.gender, age:initial.age, bodyType:initial.bodyType,
-  } : newModelData());
-
-  const addImages = async (files) => {
-    const slots = 3 - form.images.length;
-    if (slots <= 0) return;
-    const b64s = await Promise.all([...files].slice(0,slots).map(toBase64));
-    const compressed = await Promise.all(b64s.map(b=>compressImage(b)));
-    setForm(f=>({...f, images:[...f.images,...compressed].slice(0,3)}));
-  };
-
-  const valid = form.name.trim().length > 0;
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">모델 이름 *</label>
-        <input type="text" placeholder="예: 지민 (7세 여아)" value={form.name}
-          onChange={e=>setForm(f=>({...f,name:e.target.value}))}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
-      </div>
-      <ImgUploader
-        images={form.images}
-        onAdd={addImages}
-        onRemove={i=>setForm(f=>({...f,images:f.images.filter((_,j)=>j!==i)}))}
-        maxN={3} label="모델 사진" compress={true}
-      />
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">성별</label>
-          <select value={form.gender} onChange={e=>setForm(f=>({...f,gender:e.target.value}))}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-            <option value="female">여아</option>
-            <option value="male">남아</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">나이</label>
-          <input type="number" min="4" max="15" value={form.age}
-            onChange={e=>setForm(f=>({...f,age:Math.max(4,Math.min(15,+e.target.value||4))}))}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">체형</label>
-          <select value={form.bodyType} onChange={e=>setForm(f=>({...f,bodyType:e.target.value}))}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-            {BODY_TYPE_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
-      </div>
-      <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
-        <button type="button" onClick={onCancel}
-          className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">취소</button>
-        <button type="button" onClick={()=>valid&&onSave(form)} disabled={!valid}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${valid ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
-          {initial ? '저장' : '모델 추가'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SavedModelCard({ model, isSelected, onSelect, onEdit, onDelete }) {
-  return (
-    <div onClick={onSelect}
-      className={`rounded-xl border-2 p-3 transition-all ${onSelect ? 'cursor-pointer' : ''} ${
-        isSelected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'
-      }`}>
-      {model.images[0] ? (
-        <img src={model.images[0]} alt={model.name} className="w-full h-24 object-cover rounded-lg mb-2"/>
-      ) : (
-        <div className="w-full h-24 bg-gray-100 rounded-lg mb-2 flex items-center justify-center text-gray-300">
-          <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-          </svg>
-        </div>
-      )}
-      <p className="font-semibold text-sm text-gray-800 truncate">{model.name}</p>
-      <p className="text-xs text-gray-500 mt-0.5">
-        {model.gender==='female'?'여아':'남아'} {model.age}세 · {getLabelKo(BODY_TYPE_OPTIONS,model.bodyType)}
-      </p>
-      {isSelected && <p className="text-xs text-blue-600 font-semibold mt-1.5">✓ 선택됨</p>}
-      {(onEdit||onDelete) && (
-        <div className="flex gap-3 mt-2 pt-2 border-t border-gray-100" onClick={e=>e.stopPropagation()}>
-          {onEdit && <button type="button" onClick={onEdit} className="text-xs text-gray-400 hover:text-blue-600 transition-colors">편집</button>}
-          {onDelete && <button type="button" onClick={onDelete} className="text-xs text-gray-400 hover:text-red-500 transition-colors">삭제</button>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ModelLibraryModal({ onClose, savedModels, onAdd, onUpdate, onDelete }) {
-  const [mode, setMode] = useState('list'); // 'list' | 'new' | id string
-  const editingModel = mode !== 'list' && mode !== 'new' ? savedModels.find(m=>m.id===mode) : null;
-
-  const handleSave = (formData) => {
-    if (mode === 'new') {
-      onAdd({ id:uid(), ...formData, createdAt:new Date().toISOString() });
-    } else {
-      onUpdate(mode, formData);
+      const promptEsc = prompt.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      card.innerHTML = `<div class="card-title">#${i+1} ${q.label} <span class="badge bg">완료</span></div>
+        <div class="result-area">${promptEsc}</div>
+        <div class="btnrow"><button class="btn primary sm" onclick="navigator.clipboard.writeText(this.closest('.card').querySelector('.result-area').textContent)"><i class="ti ti-copy"></i> 복사</button></div>`;
+    } catch(e) {
+      card.innerHTML = `<div class="card-title">#${i+1} ${q.label} <span class="badge" style="background:var(--red-l);color:var(--red)">오류</span></div><div class="result-area" style="color:var(--red)">${e.message}</div>`;
     }
-    setMode('list');
-  };
+  }
 
-  const handleDelete = (model) => {
-    if (window.confirm(`"${model.name}" 모델을 삭제할까요?`)) { onDelete(model.id); }
-  };
+  if (results.length) {
+    const expDiv = document.createElement('div');
+    expDiv.className = 'btnrow';
+    expDiv.innerHTML = `<button class="btn primary" onclick="dlCSV(toCSV(${JSON.stringify(results).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')}),'batch_${Date.now()}.csv')"><i class="ti ti-download"></i> 배치 결과 CSV</button>`;
+    container.prepend(expDiv);
+  }
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <div className="flex items-center gap-3">
-            {mode !== 'list' && (
-              <button type="button" onClick={()=>setMode('list')}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
-                </svg>
-              </button>
-            )}
-            <h2 className="font-bold text-gray-900">
-              {mode==='list' ? '모델 라이브러리' : mode==='new' ? '새 모델 추가' : '모델 편집'}
-            </h2>
-            {mode==='list' && <span className="text-sm text-gray-400">{savedModels.length}개</span>}
-          </div>
-          <button type="button" onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 text-xl transition-colors">×</button>
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 p-6">
-          {mode !== 'list' ? (
-            <ModelForm initial={editingModel} onSave={handleSave} onCancel={()=>setMode('list')}/>
-          ) : (
-            <div>
-              <button type="button" onClick={()=>setMode('new')}
-                className="w-full border-2 border-dashed border-blue-200 bg-blue-50 text-blue-600 rounded-xl py-3 text-sm font-semibold hover:border-blue-400 hover:bg-blue-100 transition-all mb-5 flex items-center justify-center gap-2">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/>
-                </svg>
-                새 모델 추가
-              </button>
-              {savedModels.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <svg className="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  </svg>
-                  <p className="font-medium text-sm">저장된 모델이 없습니다</p>
-                  <p className="text-xs mt-1">위 버튼을 눌러 모델을 추가하세요</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {savedModels.map(model=>(
-                    <SavedModelCard key={model.id} model={model} isSelected={false}
-                      onEdit={()=>setMode(model.id)}
-                      onDelete={()=>handleDelete(model)}/>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  btn.disabled = false; btn.innerHTML = '<i class="ti ti-player-play"></i> 배치 실행';
 }
 
-/* ── SECTION COMPONENTS ─────────────────────────────────────────────────── */
-function ModelSection({ set, up, savedModels }) {
-  const isLibrary = set.modelSource === 'library';
-
-  const selectModel = (model) => {
-    up(s => ({
-      ...s,
-      selectedModelId: model.id,
-      gender:    model.gender,
-      age:       model.age,
-      bodyType:  model.bodyType,
-      modelImages: model.images,
-    }));
-  };
-
-  const selectedModel = savedModels.find(m=>m.id===set.selectedModelId);
-
-  return (
-    <div className="space-y-4">
-      {/* Tab switcher */}
-      <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-        <button type="button"
-          onClick={()=>up(s=>({...s,modelSource:'library'}))}
-          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${isLibrary?'bg-white text-blue-600 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
-          라이브러리에서 선택
-        </button>
-        <button type="button"
-          onClick={()=>up(s=>({...s,modelSource:'direct',selectedModelId:null,modelImages:[]}))}
-          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${!isLibrary?'bg-white text-blue-600 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
-          직접 입력
-        </button>
-      </div>
-
-      {isLibrary ? (
-        <div className="space-y-3">
-          {savedModels.length === 0 ? (
-            <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl text-gray-400">
-              <p className="text-sm font-medium">저장된 모델이 없습니다</p>
-              <p className="text-xs mt-1">상단 "모델 라이브러리" 버튼에서 추가하세요</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {savedModels.map(model=>(
-                <SavedModelCard key={model.id} model={model}
-                  isSelected={set.selectedModelId===model.id}
-                  onSelect={()=>selectModel(model)}/>
-              ))}
-            </div>
-          )}
-          {selectedModel && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 flex items-center gap-2">
-              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/>
-              </svg>
-              <span>
-                <strong>{selectedModel.name}</strong> 선택됨 —{' '}
-                {selectedModel.gender==='female'?'여아':'남아'} {selectedModel.age}세 · {getLabelKo(BODY_TYPE_OPTIONS,selectedModel.bodyType)}
-              </span>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <ImgUploader
-            images={set.modelImages}
-            onAdd={imgs=>up(s=>({...s,modelImages:[...s.modelImages,...imgs].slice(0,3)}))}
-            onRemove={i=>up(s=>({...s,modelImages:s.modelImages.filter((_,j)=>j!==i)}))}
-            maxN={3} label="모델 레퍼런스 이미지"
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">성별</label>
-              <select value={set.gender} onChange={e=>up(s=>({...s,gender:e.target.value}))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                <option value="female">여아</option>
-                <option value="male">남아</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">나이 (4–15세)</label>
-              <input type="number" min="4" max="15" value={set.age}
-                onChange={e=>up(s=>({...s,age:Math.max(4,Math.min(15,+e.target.value||4))}))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">체형</label>
-              <select value={set.bodyType} onChange={e=>up(s=>({...s,bodyType:e.target.value}))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                {BODY_TYPE_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-          </div>
-          {set.gender==='female' && (
-            <p className="text-xs text-purple-600 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
-              여아 선택 시 GPT Image2 safe mode template이 자동 적용됩니다.
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
+// ==========================================
+// SETTINGS
+// ==========================================
+function openSettings() {
+  document.getElementById('akey').value = S.apiKey;
+  document.getElementById('amodel').value = S.model;
+  document.getElementById('settings-overlay').classList.add('open');
 }
-
-function PoseSection({ set, up }) {
-  return (
-    <div>
-      <PillRadio name={`pose-${set.id}`} options={POSE_OPTIONS} value={set.pose} onChange={v=>up(s=>({...s,pose:v}))}/>
-      {set.pose==='custom' && <CustomInput placeholder="포즈 직접 입력 (영문 권장)" value={set.poseCustom} onChange={v=>up(s=>({...s,poseCustom:v}))}/>}
-    </div>
-  );
+function closeSettings() { document.getElementById('settings-overlay').classList.remove('open'); }
+function saveKey() {
+  S.apiKey = document.getElementById('akey').value.trim();
+  S.model = document.getElementById('amodel').value;
+  localStorage.setItem('vmk', S.apiKey);
+  localStorage.setItem('vmmodel', S.model);
+  closeSettings();
+  setStatus('API 키가 저장됐습니다.', 'ok');
+  setTimeout(() => setStatus('',''), 2000);
 }
-function ExpressionSection({ set, up }) {
-  return (
-    <div>
-      <PillRadio name={`expr-${set.id}`} options={EXPRESSION_OPTIONS} value={set.expression} onChange={v=>up(s=>({...s,expression:v}))}/>
-      {set.expression==='custom' && <CustomInput placeholder="표정 직접 입력 (영문 권장)" value={set.expressionCustom} onChange={v=>up(s=>({...s,expressionCustom:v}))}/>}
-    </div>
-  );
-}
-function CompositionSection({ set, up }) {
-  return (
-    <div>
-      <PillRadio name={`comp-${set.id}`} options={COMPOSITION_OPTIONS} value={set.composition} onChange={v=>up(s=>({...s,composition:v}))}/>
-      {set.composition==='custom' && <CustomInput placeholder="구도 직접 입력 (영문 권장)" value={set.compositionCustom} onChange={v=>up(s=>({...s,compositionCustom:v}))}/>}
-    </div>
-  );
-}
-function BackgroundSection({ set, up }) {
-  return (
-    <div className="space-y-4">
-      <PillRadio name={`bg-${set.id}`} options={BACKGROUND_OPTIONS} value={set.background} onChange={v=>up(s=>({...s,background:v}))}/>
-      {set.background==='custom' && <CustomInput placeholder="배경 직접 입력 (영문 권장)" value={set.bgCustom} onChange={v=>up(s=>({...s,bgCustom:v}))}/>}
-      <div>
-        <p className="text-xs font-medium text-gray-600 mb-2">배경 레퍼런스 이미지 <span className="text-gray-400 font-normal">(선택)</span></p>
-        {set.bgImage ? (
-          <div className="relative inline-block group">
-            <img src={set.bgImage} alt="" className="w-32 h-20 object-cover rounded-lg border border-gray-200 shadow-sm"/>
-            <button type="button" onClick={()=>up(s=>({...s,bgImage:null}))}
-              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow">×</button>
-          </div>
-        ) : (
-          <label className="inline-flex items-center gap-2 border-2 border-dashed border-blue-200 bg-blue-50 hover:border-blue-400 hover:bg-blue-100 transition-all rounded-xl px-4 py-2.5 text-sm text-gray-500 cursor-pointer">
-            <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            이미지 업로드
-            <input type="file" accept="image/*" className="hidden" onChange={async e=>{
-              if(e.target.files[0]){const b=await toBase64(e.target.files[0]);up(s=>({...s,bgImage:b}));}
-            }}/>
-          </label>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ClothingCard({ item, index, total, onChange, onRemove }) {
-  const fields = [
-    {key:'material',label:'소재',   ph:'예: 100% 면, 폴리에스터 혼방'},
-    {key:'color',   label:'색상',   ph:'예: 네이비, 오프화이트'},
-    {key:'fit',     label:'핏',     ph:'예: 오버핏, 레귤러핏'},
-    {key:'neckline',label:'넥라인', ph:'예: 라운드넥, V넥'},
-  ];
-  return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-        <span className="text-sm font-semibold text-gray-700">의류 {index+1}</span>
-        {total>1 && <button type="button" onClick={onRemove} className="text-xs text-red-400 hover:text-red-600 transition-colors">삭제</button>}
-      </div>
-      <div className="p-4 space-y-3">
-        <ImgUploader
-          images={item.images}
-          onAdd={imgs=>onChange({...item,images:[...item.images,...imgs].slice(0,5)})}
-          onRemove={i=>onChange({...item,images:item.images.filter((_,j)=>j!==i)})}
-          maxN={5} label="의류 이미지"
-        />
-        <div className="grid grid-cols-2 gap-2">
-          {fields.map(({key,label,ph})=>(
-            <div key={key}>
-              <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-              <input type="text" placeholder={ph} value={item[key]}
-                onChange={e=>onChange({...item,[key]:e.target.value})}
-                className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
-            </div>
-          ))}
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">그래픽 · 프린트</label>
-          <input type="text" placeholder="예: 스트라이프 패턴, 캐릭터 자수, 없음"
-            value={item.graphic} onChange={e=>onChange({...item,graphic:e.target.value})}
-            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ClothingSection({ set, up }) {
-  const updateItem = (id,u) => up(s=>({...s,clothingItems:s.clothingItems.map(c=>c.id===id?u:c)}));
-  const removeItem = (id)  => up(s=>({...s,clothingItems:s.clothingItems.filter(c=>c.id!==id)}));
-  const addItem    = ()    => { if(set.clothingItems.length<5) up(s=>({...s,clothingItems:[...s.clothingItems,newClothingItem()]})); };
-  return (
-    <div className="space-y-3">
-      {set.clothingItems.map((item,i)=>(
-        <ClothingCard key={item.id} item={item} index={i} total={set.clothingItems.length}
-          onChange={u=>updateItem(item.id,u)} onRemove={()=>removeItem(item.id)}/>
-      ))}
-      {set.clothingItems.length<5 && (
-        <button type="button" onClick={addItem}
-          className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
-          + 의류 추가
-        </button>
-      )}
-    </div>
-  );
-}
-
-function StyleSection({ set, up }) {
-  return (
-    <div className="space-y-3">
-      <ImgUploader
-        images={set.styleImages}
-        onAdd={imgs=>up(s=>({...s,styleImages:[...s.styleImages,...imgs].slice(0,5)}))}
-        onRemove={i=>up(s=>({...s,styleImages:s.styleImages.filter((_,j)=>j!==i)}))}
-        maxN={5} label="스타일 레퍼런스 이미지"
-      />
-      <textarea placeholder="스타일 메모 (예: 레트로 감성, 파스텔 톤 위주, 스포티한 느낌)"
-        value={set.styleMemo} onChange={e=>up(s=>({...s,styleMemo:e.target.value}))} rows={3}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"/>
-    </div>
-  );
-}
-
-/* ── SET CARD ───────────────────────────────────────────────────────────── */
-function SetCard({ set, index, up, onRemove, canRemove, savedModels }) {
-  const tog = k => up(s=>({...s,open:{...s.open,[k]:!s.open[k]}}));
-  const selectedName = set.selectedModelId ? savedModels.find(m=>m.id===set.selectedModelId)?.name : null;
-  const sections = [
-    { k:'model',       title:`1. 모델 정보${selectedName?` — ${selectedName}`:''}`, el:<ModelSection set={set} up={up} savedModels={savedModels}/> },
-    { k:'pose',        title:'2. 포즈',                  el:<PoseSection        set={set} up={up}/> },
-    { k:'expression',  title:'3. 표정',                  el:<ExpressionSection  set={set} up={up}/> },
-    { k:'composition', title:'4. 구도 / 카메라 앵글',    el:<CompositionSection set={set} up={up}/> },
-    { k:'background',  title:'5. 배경',                  el:<BackgroundSection  set={set} up={up}/> },
-    { k:'clothing',    title:'6. 의류 정보',             el:<ClothingSection    set={set} up={up}/> },
-    { k:'style',       title:'7. 스타일 레퍼런스 (선택)', el:<StyleSection       set={set} up={up}/> },
-  ];
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-5 overflow-hidden">
-      <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600">
-        <span className="w-7 h-7 bg-white bg-opacity-25 text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">{index+1}</span>
-        <input type="text" value={set.label} onChange={e=>up(s=>({...s,label:e.target.value}))}
-          className="flex-1 bg-transparent text-white font-semibold text-sm border-0 border-b border-transparent hover:border-white/40 focus:border-white focus:outline-none"/>
-        {canRemove && <button type="button" onClick={onRemove} className="text-white/70 hover:text-white text-sm transition-colors shrink-0">세트 삭제</button>}
-      </div>
-      <div className="p-5">
-        {sections.map(({k,title,el})=>(
-          <Accordion key={k} title={title} isOpen={set.open[k]} onToggle={()=>tog(k)}>{el}</Accordion>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── PROMPT RESULT ──────────────────────────────────────────────────────── */
-function PromptResult({ item }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    const doCopy = (text) => {
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);}).catch(()=>fb(text));
-      } else { fb(text); }
-    };
-    const fb = (text) => {
-      const ta=document.createElement('textarea'); ta.value=text;
-      ta.style.cssText='position:fixed;opacity:0;top:0;left:0';
-      document.body.appendChild(ta); ta.focus(); ta.select();
-      try{document.execCommand('copy');}catch{}
-      document.body.removeChild(ta);
-      setCopied(true); setTimeout(()=>setCopied(false),2000);
-    };
-    doCopy(item.prompt);
-  };
-  const m = item.meta;
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-4 fade-in">
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-gray-800">{m.label}</span>
-            <span className="text-xs text-gray-400">{item.timestamp}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{m.gender==='female'?'여아':'남아'} {m.age}세</span>
-            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{getLabelKo(BODY_TYPE_OPTIONS,m.bodyType)}</span>
-            <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{m.pose==='custom'?m.poseCustom:getLabelKo(POSE_OPTIONS,m.pose)}</span>
-            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{m.composition==='custom'?m.compositionCustom:getLabelKo(COMPOSITION_OPTIONS,m.composition)}</span>
-          </div>
-        </div>
-        <button onClick={copy}
-          className={`shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${copied?'bg-green-100 text-green-700 border border-green-200':'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}`}>
-          {copied?'✓ 복사됨':'복사하기'}
-        </button>
-      </div>
-      <pre className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 font-mono leading-6 overflow-x-auto">{item.prompt}</pre>
-    </div>
-  );
-}
-
-function HistorySection({ history, onClear }) {
-  if (!history.length) return null;
-  const download = () => {
-    const csv=buildCSV(history);
-    const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url;
-    a.download=`fashion_prompts_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  };
-  return (
-    <section id="history-section" className="mt-10">
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <h2 className="text-base font-bold text-gray-800">생성 히스토리 <span className="text-sm font-normal text-gray-400">{history.length}개</span></h2>
-        <div className="flex gap-2">
-          <button onClick={download}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            CSV 다운로드
-          </button>
-          <button onClick={onClear}
-            className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">초기화</button>
-        </div>
-      </div>
-      {[...history].reverse().map(item=><PromptResult key={item.id} item={item}/>)}
-    </section>
-  );
-}
-
-/* ── APP ────────────────────────────────────────────────────────────────── */
-function App() {
-  const [sets,    setSets]    = useState([newSet(1)]);
-  const [history, setHistory] = useState([]);
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [savedModels, setSavedModels] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
-    catch { return []; }
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(savedModels)); }
-    catch (e) { console.warn('localStorage 저장 실패 (용량 초과일 수 있음):', e); }
-  }, [savedModels]);
-
-  const addModel    = (m)      => setSavedModels(prev=>[...prev,m]);
-  const updateModel = (id,data)=> setSavedModels(prev=>prev.map(m=>m.id===id?{...m,...data}:m));
-  const deleteModel = (id)     => {
-    setSavedModels(prev=>prev.filter(m=>m.id!==id));
-    setSets(prev=>prev.map(s=>s.selectedModelId===id?{...s,selectedModelId:null,modelSource:'direct',modelImages:[]}:s));
-  };
-
-  const upSet = useCallback((id,fn)=>setSets(prev=>prev.map(s=>s.id===id?fn(s):s)),[]);
-  const addSet    = () => setSets(prev=>[...prev,newSet(prev.length+1)]);
-  const removeSet = (id)=> setSets(prev=>prev.filter(s=>s.id!==id));
-
-  const generate = () => {
-    const now=new Date();
-    const ts=`${now.toLocaleDateString('ko-KR')} ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
-    const items = sets.map(set=>({
-      id: uid(), timestamp: ts,
-      meta: {
-        ...set, modelImages:[], bgImage:null, styleImages:[],
-        clothingItems:set.clothingItems.map(c=>({...c,images:[]})),
-      },
-      prompt: buildPrompt(set),
-    }));
-    setHistory(prev=>[...prev,...items]);
-    setTimeout(()=>document.getElementById('history-section')?.scrollIntoView({behavior:'smooth'}),150);
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">아동 패션 프롬프트 생성기</h1>
-            <p className="text-xs text-gray-400 mt-0.5">AI 이미지 생성 도구용 프롬프트 자동 생성</p>
-          </div>
-          <button type="button" onClick={()=>setShowLibrary(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm shrink-0">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-            모델 라이브러리
-            {savedModels.length > 0 && (
-              <span className="bg-white text-indigo-600 text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">{savedModels.length}</span>
-            )}
-          </button>
-        </div>
-      </header>
-
-      {/* Library Modal */}
-      {showLibrary && (
-        <ModelLibraryModal
-          onClose={()=>setShowLibrary(false)}
-          savedModels={savedModels}
-          onAdd={addModel}
-          onUpdate={updateModel}
-          onDelete={deleteModel}
-        />
-      )}
-
-      <main className="max-w-3xl mx-auto px-4 py-6">
-        {/* Notice */}
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
-          <svg className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <p className="text-sm text-amber-800">
-            생성된 프롬프트는 <strong>GPT-Image, Midjourney</strong> 등 외부 AI 이미지 생성 도구에서 사용하세요.
-            이미지는 브라우저 내에서만 처리됩니다.
-          </p>
-        </div>
-
-        {sets.map((set,i)=>(
-          <SetCard key={set.id} set={set} index={i} up={fn=>upSet(set.id,fn)}
-            onRemove={()=>removeSet(set.id)} canRemove={sets.length>1} savedModels={savedModels}/>
-        ))}
-
-        <button type="button" onClick={addSet}
-          className="w-full mb-5 border-2 border-dashed border-blue-200 rounded-2xl py-4 text-blue-500 font-medium text-sm hover:border-blue-400 hover:bg-blue-50 transition-all flex items-center justify-center gap-2">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/>
-          </svg>
-          세트 추가 (배치 모드)
-        </button>
-
-        <button type="button" onClick={generate}
-          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 rounded-2xl text-base shadow-lg hover:shadow-xl transition-all active:scale-[0.99]">
-          프롬프트 생성
-          {sets.length>1 && <span className="ml-2 text-blue-200 font-normal text-sm">({sets.length}개 세트)</span>}
-        </button>
-
-        <div id="history-section">
-          <HistorySection history={history} onClear={()=>setHistory([])}/>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+document.getElementById('settings-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeSettings(); });
 </script>
 </body>
 </html>
