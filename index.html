@@ -13,9 +13,11 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif; }
     .fade-in  { animation: fadeIn  0.22s ease-out; }
     .slide-in { animation: slideIn 0.22s ease-out; }
-    @keyframes fadeIn  { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes slideIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes fadeIn  { from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);} }
+    @keyframes slideIn { from{opacity:0;}to{opacity:1;} }
     pre { white-space:pre-wrap; word-break:break-word; }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
@@ -56,10 +58,10 @@ const BODY_TYPE_OPTIONS = [
   { value:'normal', label:'보통', en:'average build' },
   { value:'chubby', label:'통통', en:'slightly chubby build' },
 ];
-
-const getLabelKo = (opts, val) => opts.find(o=>o.value===val)?.label ?? '';
-const getEnStr   = (opts, val) => opts.find(o=>o.value===val)?.en   ?? '';
-const LS_KEY = 'fashionModels_v1';
+const getLabelKo = (opts,val) => opts.find(o=>o.value===val)?.label ?? '';
+const getEnStr   = (opts,val) => opts.find(o=>o.value===val)?.en   ?? '';
+const LS_MODELS  = 'fashionModels_v1';
+const LS_APIKEY  = 'fashionApp_apiKey';
 
 /* ── UTILITIES ──────────────────────────────────────────────────────────── */
 const uid = () => Math.random().toString(36).slice(2,9);
@@ -68,11 +70,11 @@ const toBase64 = file => new Promise((res,rej)=>{
   const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsDataURL(file);
 });
 
-const compressImage = (base64, maxSize=600, quality=0.78) => new Promise(resolve=>{
+const compressImage = (base64,maxSize=600,quality=0.78) => new Promise(resolve=>{
   const img=new Image();
   img.onload=()=>{
-    let w=img.width, h=img.height;
-    if(w>maxSize||h>maxSize){ if(w>h){h=Math.round(h*maxSize/w);w=maxSize;}else{w=Math.round(w*maxSize/h);h=maxSize;} }
+    let w=img.width,h=img.height;
+    if(w>maxSize||h>maxSize){if(w>h){h=Math.round(h*maxSize/w);w=maxSize;}else{w=Math.round(w*maxSize/h);h=maxSize;}}
     const c=document.createElement('canvas'); c.width=w; c.height=h;
     c.getContext('2d').drawImage(img,0,0,w,h);
     resolve(c.toDataURL('image/jpeg',quality));
@@ -80,8 +82,7 @@ const compressImage = (base64, maxSize=600, quality=0.78) => new Promise(resolve
   img.src=base64;
 });
 
-/* Convert base64 to PNG blob for clipboard API */
-const toPngBlob = (base64) => new Promise(resolve=>{
+const toPngBlob = base64 => new Promise(resolve=>{
   const img=new Image();
   img.onload=()=>{
     const c=document.createElement('canvas'); c.width=img.width; c.height=img.height;
@@ -91,36 +92,73 @@ const toPngBlob = (base64) => new Promise(resolve=>{
   img.src=base64;
 });
 
-/* Copy a single image to clipboard */
-const copyImgToClipboard = async (base64) => {
-  try {
-    const blob = await toPngBlob(base64);
-    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
-    return true;
-  } catch(e) {
-    return false;
-  }
+const copyImgToClipboard = async base64 => {
+  try{const blob=await toPngBlob(base64);await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);return true;}
+  catch{return false;}
 };
 
-/* Download a single image as file */
-const downloadImg = (base64, filename) => {
+const downloadImg = (base64,filename) => {
   toPngBlob(base64).then(blob=>{
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a'); a.href=url; a.download=filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   });
 };
 
-/* Download all images sequentially */
-const downloadAllImgs = (imageGroups) => {
+const downloadAllImgs = groups => {
   const all=[];
-  imageGroups.forEach(({images,prefix})=>{
-    images.forEach((src,i)=>all.push({src,name:`${prefix}_${i+1}.png`}));
-  });
-  all.forEach(({src,name},i)=>setTimeout(()=>downloadImg(src,name), i*350));
+  groups.forEach(({images,prefix})=>images.forEach((src,i)=>all.push({src,name:`${prefix}_${i+1}.png`})));
+  all.forEach(({src,name},i)=>setTimeout(()=>downloadImg(src,name),i*350));
 };
 
+/* ── CLAUDE API — 의류 이미지 자동 분석 ────────────────────────────────── */
+const analyzeClothingImage = async (base64, apiKey) => {
+  const mediaType = base64.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
+  const imageData = base64.split(',')[1];
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 400,
+      messages: [{
+        role: 'user',
+        content: [
+          { type:'image', source:{ type:'base64', media_type:mediaType, data:imageData } },
+          { type:'text', text:`Analyze this children's clothing item for a fashion catalog.
+Return ONLY a valid JSON object with these exact keys:
+{
+  "material": "fabric type in 2-4 words (e.g. 100% cotton, polyester blend)",
+  "color": "specific color in 2-4 words (e.g. navy blue, pastel pink stripe)",
+  "fit": "fit type in 2-3 words (e.g. oversized fit, slim fit, relaxed fit)",
+  "neckline": "neckline in 2-3 words (e.g. round neck, V-neck, crew neck, collar)",
+  "graphic": "describe pattern/print in 3-6 words, or 'none' if plain solid color"
+}
+English only. No extra text outside the JSON.` }
+        ]
+      }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err?.error?.message || `API 오류 (${res.status})`);
+  }
+
+  const data = await res.json();
+  const text = data.content[0].text.trim();
+  const match = text.match(/\{[\s\S]*?\}/);
+  if (!match) throw new Error('응답을 파싱할 수 없습니다');
+  return JSON.parse(match[0]);
+};
+
+/* ── DATA HELPERS ───────────────────────────────────────────────────────── */
 const newClothingItem = () => ({id:uid(),images:[],material:'',color:'',fit:'',neckline:'',graphic:''});
 const newModelData    = () => ({name:'',images:[],gender:'female',age:8,bodyType:'normal'});
 
@@ -149,27 +187,40 @@ const buildPrompt = (set) => {
   const refs=[];
   if(set.modelImages.length) refs.push(`${set.modelImages.length} model reference photo(s)`);
   const ci=set.clothingItems.reduce((a,c)=>a+c.images.length,0);
-  if(ci) refs.push(`${ci} clothing reference photo(s)`);
-  if(set.bgImage) refs.push('1 background reference photo');
+  if(ci)             refs.push(`${ci} clothing reference photo(s) — replicate exactly`);
+  if(set.bgImage)    refs.push('1 background reference photo');
   if(set.styleImages.length) refs.push(`${set.styleImages.length} style reference photo(s)`);
-  const refLine=refs.length?`Reference images attached: ${refs.join(', ')}\n\n`:'';
+  const refLine = refs.length?`Reference images attached: ${refs.join(', ')}\n\n`:'';
 
-  const clothingLines=set.clothingItems.map((c,i)=>{
+  const clothingLines = set.clothingItems.map((c,i)=>{
     const d=[];
-    if(c.color) d.push(c.color); if(c.material) d.push(`${c.material} fabric`);
-    if(c.fit) d.push(`${c.fit} fit`); if(c.neckline) d.push(`${c.neckline} neckline`);
-    if(c.graphic) d.push(`with ${c.graphic}`);
-    return `  • Item ${i+1}: ${d.length?d.join(', '):'(see reference image)'}`;
+    if(c.color)    d.push(c.color);
+    if(c.material) d.push(`${c.material} fabric`);
+    if(c.fit)      d.push(`${c.fit} fit`);
+    if(c.neckline) d.push(`${c.neckline} neckline`);
+    if(c.graphic && c.graphic.toLowerCase()!=='none') d.push(`with ${c.graphic}`);
+    const hasImg = c.images.length>0;
+    const desc = d.length ? d.join(', ') : hasImg ? '— details in reference image' : '(no details provided)';
+    return `  • Item ${i+1}: ${desc}`;
   }).join('\n');
 
-  const styleLine=set.styleMemo?`\nStyle notes: ${set.styleMemo}`:'';
-  const safeMode=set.gender==='female'?'\n\n[GPT Image2 safe mode template applied]':'';
+  const styleLine  = set.styleMemo?`\nStyle notes: ${set.styleMemo}`:'';
+  const safeMode   = set.gender==='female'?'\n\n[GPT Image2 safe mode template applied]':'';
+  const hasClothingImages = set.clothingItems.some(c=>c.images.length>0);
 
   return `${refLine}Generate a realistic fashion catalog photograph of a young Korean ${gender}, age ${set.age}, with a ${bodyType}.
 
 Clothing worn:
 ${clothingLines}
-
+${hasClothingImages ? `
+⚠️ CRITICAL CLOTHING REQUIREMENT:
+Reproduce ALL clothing items with 100% accuracy to the reference images.
+- Match EXACT colors, tones, and color combinations
+- Replicate ALL patterns, prints, graphics, logos, and textures precisely
+- Preserve the exact cut, silhouette, and proportions
+- Keep every design detail: buttons, pockets, collars, seams, embroidery
+- Do NOT simplify, stylize, substitute, or alter any clothing element
+- The final image clothing must be indistinguishable from the reference` : ''}
 Pose: ${pose}
 Expression: ${expression}
 Composition: ${composition}
@@ -179,7 +230,7 @@ Quality: high resolution, natural studio lighting, photorealistic, clean and min
 };
 
 /* ── CSV BUILDER ────────────────────────────────────────────────────────── */
-const buildCSV = (history) => {
+const buildCSV = history => {
   const headers=['생성시간','세트명','성별','나이','체형','포즈','표정','구도','배경','의류설명','생성프롬프트'];
   const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
   const rows=history.map(h=>{
@@ -214,7 +265,6 @@ function Accordion({title,isOpen,onToggle,children}){
     </div>
   );
 }
-
 function PillRadio({options,value,onChange,name}){
   return(
     <div className="flex flex-wrap gap-2">
@@ -228,17 +278,15 @@ function PillRadio({options,value,onChange,name}){
     </div>
   );
 }
-
 function CustomInput({placeholder,value,onChange}){
   return(
     <input type="text" placeholder={placeholder} value={value} onChange={e=>onChange(e.target.value)}
       className="mt-3 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent"/>
   );
 }
-
 function ImgUploader({images,onAdd,onRemove,maxN,label,compress=false}){
   const ref=useRef(null);
-  const handle=async(files)=>{
+  const handle=async files=>{
     const slots=maxN-images.length; if(slots<=0)return;
     const b64s=await Promise.all([...files].slice(0,slots).map(toBase64));
     const final=compress?await Promise.all(b64s.map(b=>compressImage(b))):b64s;
@@ -274,107 +322,133 @@ function ImgUploader({images,onAdd,onRemove,maxN,label,compress=false}){
   );
 }
 
-/* ── IMAGE THUMBNAIL (in result card) ──────────────────────────────────── */
-function ImageThumb({ src, filename }) {
-  const [state, setState] = useState('idle'); // idle | copying | copied | failed
-
-  const handleCopy = async (e) => {
-    e.stopPropagation();
-    setState('copying');
-    const ok = await copyImgToClipboard(src);
-    setState(ok ? 'copied' : 'failed');
-    setTimeout(() => setState('idle'), 1800);
-  };
-
-  const handleDownload = (e) => {
-    e.stopPropagation();
-    downloadImg(src, filename);
-  };
-
-  const overlayLabel = { idle:'', copying:'복사 중', copied:'복사됨!', failed:'복사 실패\n(다운로드로 저장)' }[state];
-
-  return (
+/* ── IMAGE PANEL (in result card) ───────────────────────────────────────── */
+function ImageThumb({src,filename}){
+  const [st,setSt]=useState('idle');
+  const copy=async e=>{e.stopPropagation();setSt('copying');const ok=await copyImgToClipboard(src);setSt(ok?'copied':'failed');setTimeout(()=>setSt('idle'),1800);};
+  const dl=e=>{e.stopPropagation();downloadImg(src,filename);};
+  return(
     <div className="relative group w-20 h-20 shrink-0">
       <img src={src} alt={filename} className="w-20 h-20 object-cover rounded-xl border border-gray-200 shadow-sm"/>
-      {/* hover overlay */}
-      <div className={`absolute inset-0 rounded-xl transition-all flex flex-col items-center justify-center gap-1.5 ${
-        state!=='idle' ? 'bg-black/60' : 'bg-black/0 group-hover:bg-black/50'
-      } opacity-0 group-hover:opacity-100 ${state!=='idle'?'opacity-100':''}`}>
-        {state === 'idle' ? (
+      <div className={`absolute inset-0 rounded-xl transition-all flex flex-col items-center justify-center gap-1.5 ${st!=='idle'?'bg-black/60':'bg-black/0 group-hover:bg-black/50'} opacity-0 group-hover:opacity-100 ${st!=='idle'?'!opacity-100':''}`}>
+        {st==='idle'?(
           <>
-            <button onClick={handleCopy} title="클립보드에 복사"
+            <button onClick={copy} title="클립보드에 복사"
               className="w-7 h-7 bg-white/90 hover:bg-blue-500 hover:text-white text-gray-700 rounded-full flex items-center justify-center transition-all shadow">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
               </svg>
             </button>
-            <button onClick={handleDownload} title="다운로드"
+            <button onClick={dl} title="다운로드"
               className="w-7 h-7 bg-white/90 hover:bg-emerald-500 hover:text-white text-gray-700 rounded-full flex items-center justify-center transition-all shadow">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
               </svg>
             </button>
           </>
-        ) : (
-          <p className={`text-center text-xs font-semibold px-1 leading-tight ${
-            state==='copied'?'text-green-300':state==='failed'?'text-red-300':'text-white'
-          }`}>{overlayLabel}</p>
+        ):(
+          <p className={`text-center text-xs font-semibold px-1 leading-tight ${st==='copied'?'text-green-300':st==='failed'?'text-red-300':'text-white'}`}>
+            {st==='copying'?'복사 중':st==='copied'?'복사됨!':'복사 실패\n다운로드로 저장'}
+          </p>
         )}
       </div>
     </div>
   );
 }
-
-function ImagePanel({ images }) {
-  const groups = [
-    { key:'model',      label:'모델 이미지',          prefix:'model',      list: images.model },
-    { key:'clothing',   label:'의류 이미지',           prefix:'clothing',   list: images.clothing },
-    { key:'background', label:'배경 레퍼런스',         prefix:'background', list: images.background?[images.background]:[] },
-    { key:'style',      label:'스타일 레퍼런스',       prefix:'style_ref',  list: images.style },
-  ].filter(g => g.list.length > 0);
-
-  if (groups.length === 0) return null;
-
-  const handleDownloadAll = () => {
-    downloadAllImgs(groups.map(g=>({images:g.list, prefix:g.prefix})));
-  };
-
-  return (
+function ImagePanel({images}){
+  const groups=[
+    {key:'model',      label:'모델 이미지',        prefix:'model',      list:images.model},
+    {key:'clothing',   label:'의류 이미지',         prefix:'clothing',   list:images.clothing},
+    {key:'background', label:'배경 레퍼런스',       prefix:'background', list:images.background?[images.background]:[]},
+    {key:'style',      label:'스타일 레퍼런스',     prefix:'style_ref',  list:images.style},
+  ].filter(g=>g.list.length>0);
+  if(!groups.length) return null;
+  const dlAll=()=>downloadAllImgs(groups.map(g=>({images:g.list,prefix:g.prefix})));
+  return(
     <div className="mb-4 border border-blue-200 bg-blue-50 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-sm font-semibold text-blue-800">첨부 이미지</p>
           <p className="text-xs text-blue-600 mt-0.5">이미지 위에 마우스를 올리면 복사/다운로드 버튼이 나타납니다</p>
         </div>
-        <button onClick={handleDownloadAll}
+        <button onClick={dlAll}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-50 transition-colors shadow-sm shrink-0">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-          전체 다운로드
+          </svg>전체 다운로드
         </button>
       </div>
-
       <div className="space-y-3">
         {groups.map(g=>(
           <div key={g.key}>
             <p className="text-xs font-medium text-blue-700 mb-1.5">{g.label}</p>
             <div className="flex flex-wrap gap-2">
-              {g.list.map((src,i)=>(
-                <ImageThumb key={i} src={src} filename={`${g.prefix}_${i+1}.png`}/>
-              ))}
+              {g.list.map((src,i)=><ImageThumb key={i} src={src} filename={`${g.prefix}_${i+1}.png`}/>)}
             </div>
           </div>
         ))}
       </div>
-
       <div className="mt-3 pt-3 border-t border-blue-200">
         <p className="text-xs text-blue-700 leading-relaxed">
-          <strong>AI 이미지 생성 도구 사용법:</strong>{' '}
-          ① 프롬프트 복사 후 붙여넣기 → ② 이미지를 한 장씩 클립보드 복사(클릭) → ③ AI 도구에 Ctrl+V로 붙여넣기
-          <br/>
-          <span className="text-blue-500">※ 브라우저 보안 정책상 여러 이미지를 한 번에 복사하는 것은 지원되지 않습니다. 이미지가 복사되지 않으면 다운로드 후 직접 첨부하세요.</span>
+          <strong>사용법:</strong> ① 프롬프트 복사 → ② 이미지 클릭(클립보드 복사) → ③ AI 도구에서 Ctrl+V<br/>
+          <span className="text-blue-500">※ 브라우저 제한으로 이미지는 한 장씩 복사됩니다. 안 되면 전체 다운로드 후 직접 첨부하세요.</span>
         </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── API 설정 모달 ──────────────────────────────────────────────────────── */
+function ApiSettingsModal({apiKey,onSave,onClose}){
+  const [key,setKey]=useState(apiKey);
+  const [show,setShow]=useState(false);
+  return(
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="font-bold text-gray-900">Claude API 설정</h2>
+          <button type="button" onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 text-xl">×</button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+            <p className="font-semibold mb-1">의류 이미지 자동 분석 기능</p>
+            <p>Anthropic Claude API를 이용해 의류 이미지를 업로드하면 소재, 색상, 핏 등을 자동으로 분석합니다.</p>
+            <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer"
+              className="inline-block mt-2 text-blue-600 underline text-xs">API 키 발급 받기 →</a>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">Anthropic API Key</label>
+            <div className="relative">
+              <input
+                type={show?'text':'password'}
+                placeholder="sk-ant-api03-..."
+                value={key}
+                onChange={e=>setKey(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              <button type="button" onClick={()=>setShow(s=>!s)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs px-1">
+                {show?'숨기기':'보기'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">API 키는 이 브라우저에만 저장되며 외부로 전송되지 않습니다.</p>
+          </div>
+          {apiKey && (
+            <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/></svg>
+              API 키가 설정되어 있습니다. 의류 이미지 업로드 시 자동 분석 버튼이 표시됩니다.
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 justify-end px-6 pb-6">
+          {apiKey&&<button type="button" onClick={()=>{onSave('');onClose();}}
+            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors">삭제</button>}
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">취소</button>
+          <button type="button" onClick={()=>{onSave(key.trim());onClose();}}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm transition-colors">저장</button>
+        </div>
       </div>
     </div>
   );
@@ -382,7 +456,9 @@ function ImagePanel({ images }) {
 
 /* ── MODEL LIBRARY COMPONENTS ───────────────────────────────────────────── */
 function ModelForm({initial,onSave,onCancel}){
-  const [form,setForm]=useState(initial?{name:initial.name,images:initial.images,gender:initial.gender,age:initial.age,bodyType:initial.bodyType}:newModelData());
+  const [form,setForm]=useState(initial
+    ?{name:initial.name,images:initial.images,gender:initial.gender,age:initial.age,bodyType:initial.bodyType}
+    :newModelData());
   const valid=form.name.trim().length>0;
   return(
     <div className="space-y-4">
@@ -429,11 +505,9 @@ function ModelForm({initial,onSave,onCancel}){
     </div>
   );
 }
-
 function SavedModelCard({model,isSelected,onSelect,onEdit,onDelete}){
   return(
-    <div onClick={onSelect} className={`rounded-xl border-2 p-3 transition-all ${onSelect?'cursor-pointer':''} ${
-      isSelected?'border-blue-500 bg-blue-50 shadow-sm':'border-gray-200 bg-white hover:border-gray-300'}`}>
+    <div onClick={onSelect} className={`rounded-xl border-2 p-3 transition-all ${onSelect?'cursor-pointer':''} ${isSelected?'border-blue-500 bg-blue-50 shadow-sm':'border-gray-200 bg-white hover:border-gray-300'}`}>
       {model.images[0]?(
         <img src={model.images[0]} alt={model.name} className="w-full h-24 object-cover rounded-lg mb-2"/>
       ):(
@@ -455,16 +529,15 @@ function SavedModelCard({model,isSelected,onSelect,onEdit,onDelete}){
     </div>
   );
 }
-
 function ModelLibraryModal({onClose,savedModels,onAdd,onUpdate,onDelete}){
   const [mode,setMode]=useState('list');
   const editingModel=mode!=='list'&&mode!=='new'?savedModels.find(m=>m.id===mode):null;
-  const handleSave=(formData)=>{
+  const handleSave=formData=>{
     if(mode==='new') onAdd({id:uid(),...formData,createdAt:new Date().toISOString()});
     else onUpdate(mode,formData);
     setMode('list');
   };
-  const handleDelete=(model)=>{ if(window.confirm(`"${model.name}" 모델을 삭제할까요?`)) onDelete(model.id); };
+  const handleDelete=model=>{ if(window.confirm(`"${model.name}" 모델을 삭제할까요?`)) onDelete(model.id); };
   return(
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
@@ -519,7 +592,7 @@ function ModelLibraryModal({onClose,savedModels,onAdd,onUpdate,onDelete}){
 /* ── SECTION COMPONENTS ─────────────────────────────────────────────────── */
 function ModelSection({set,up,savedModels}){
   const isLibrary=set.modelSource==='library';
-  const selectModel=(model)=>up(s=>({...s,selectedModelId:model.id,gender:model.gender,age:model.age,bodyType:model.bodyType,modelImages:model.images}));
+  const selectModel=model=>up(s=>({...s,selectedModelId:model.id,gender:model.gender,age:model.age,bodyType:model.bodyType,modelImages:model.images}));
   const selectedModel=savedModels.find(m=>m.id===set.selectedModelId);
   return(
     <div className="space-y-4">
@@ -592,25 +665,9 @@ function ModelSection({set,up,savedModels}){
     </div>
   );
 }
-
-function PoseSection({set,up}){
-  return(<div>
-    <PillRadio name={`pose-${set.id}`} options={POSE_OPTIONS} value={set.pose} onChange={v=>up(s=>({...s,pose:v}))}/>
-    {set.pose==='custom'&&<CustomInput placeholder="포즈 직접 입력 (영문 권장)" value={set.poseCustom} onChange={v=>up(s=>({...s,poseCustom:v}))}/>}
-  </div>);
-}
-function ExpressionSection({set,up}){
-  return(<div>
-    <PillRadio name={`expr-${set.id}`} options={EXPRESSION_OPTIONS} value={set.expression} onChange={v=>up(s=>({...s,expression:v}))}/>
-    {set.expression==='custom'&&<CustomInput placeholder="표정 직접 입력 (영문 권장)" value={set.expressionCustom} onChange={v=>up(s=>({...s,expressionCustom:v}))}/>}
-  </div>);
-}
-function CompositionSection({set,up}){
-  return(<div>
-    <PillRadio name={`comp-${set.id}`} options={COMPOSITION_OPTIONS} value={set.composition} onChange={v=>up(s=>({...s,composition:v}))}/>
-    {set.composition==='custom'&&<CustomInput placeholder="구도 직접 입력 (영문 권장)" value={set.compositionCustom} onChange={v=>up(s=>({...s,compositionCustom:v}))}/>}
-  </div>);
-}
+function PoseSection({set,up}){return(<div><PillRadio name={`pose-${set.id}`} options={POSE_OPTIONS} value={set.pose} onChange={v=>up(s=>({...s,pose:v}))}/>{set.pose==='custom'&&<CustomInput placeholder="포즈 직접 입력 (영문 권장)" value={set.poseCustom} onChange={v=>up(s=>({...s,poseCustom:v}))}/>}</div>);}
+function ExpressionSection({set,up}){return(<div><PillRadio name={`expr-${set.id}`} options={EXPRESSION_OPTIONS} value={set.expression} onChange={v=>up(s=>({...s,expression:v}))}/>{set.expression==='custom'&&<CustomInput placeholder="표정 직접 입력 (영문 권장)" value={set.expressionCustom} onChange={v=>up(s=>({...s,expressionCustom:v}))}/>}</div>);}
+function CompositionSection({set,up}){return(<div><PillRadio name={`comp-${set.id}`} options={COMPOSITION_OPTIONS} value={set.composition} onChange={v=>up(s=>({...s,composition:v}))}/>{set.composition==='custom'&&<CustomInput placeholder="구도 직접 입력 (영문 권장)" value={set.compositionCustom} onChange={v=>up(s=>({...s,compositionCustom:v}))}/>}</div>);}
 function BackgroundSection({set,up}){
   return(
     <div className="space-y-4">
@@ -638,19 +695,71 @@ function BackgroundSection({set,up}){
   );
 }
 
-function ClothingCard({item,index,total,onChange,onRemove}){
+/* ── CLOTHING CARD (자동 분석 포함) ─────────────────────────────────────── */
+function ClothingCard({item,index,total,onChange,onRemove,apiKey}){
+  const [analyzing,setAnalyzing]=useState(false);
+  const [analyzeMsg,setAnalyzeMsg]=useState('');
+
+  const handleAnalyze=async()=>{
+    if(!item.images.length||!apiKey) return;
+    setAnalyzing(true); setAnalyzeMsg('');
+    try{
+      const result=await analyzeClothingImage(item.images[0],apiKey);
+      onChange({
+        ...item,
+        material: result.material||item.material,
+        color:    result.color   ||item.color,
+        fit:      result.fit     ||item.fit,
+        neckline: result.neckline||item.neckline,
+        graphic:  result.graphic ||item.graphic,
+      });
+      setAnalyzeMsg('분석 완료!');
+    }catch(e){
+      setAnalyzeMsg(`오류: ${e.message}`);
+    }finally{
+      setAnalyzing(false);
+      setTimeout(()=>setAnalyzeMsg(''),3000);
+    }
+  };
+
   const fields=[
-    {key:'material',label:'소재',ph:'예: 100% 면, 폴리에스터 혼방'},
-    {key:'color',label:'색상',ph:'예: 네이비, 오프화이트'},
-    {key:'fit',label:'핏',ph:'예: 오버핏, 레귤러핏'},
-    {key:'neckline',label:'넥라인',ph:'예: 라운드넥, V넥'},
+    {key:'material',label:'소재',   ph:'예: 100% 면, 폴리에스터 혼방'},
+    {key:'color',   label:'색상',   ph:'예: 네이비, 오프화이트'},
+    {key:'fit',     label:'핏',     ph:'예: 오버핏, 레귤러핏'},
+    {key:'neckline',label:'넥라인', ph:'예: 라운드넥, V넥'},
   ];
+
   return(
     <div className="border border-gray-200 rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
         <span className="text-sm font-semibold text-gray-700">의류 {index+1}</span>
-        {total>1&&<button type="button" onClick={onRemove} className="text-xs text-red-400 hover:text-red-600 transition-colors">삭제</button>}
+        <div className="flex items-center gap-3">
+          {/* 자동 분석 버튼 */}
+          {apiKey&&item.images.length>0&&(
+            <button type="button" onClick={handleAnalyze} disabled={analyzing}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-lg transition-all ${
+                analyzing?'bg-violet-100 text-violet-400 cursor-not-allowed':'bg-violet-600 text-white hover:bg-violet-700 shadow-sm'}`}>
+              {analyzing?(
+                <><svg className="w-3 h-3 spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>분석 중</>
+              ):(
+                <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>자동 분석</>
+              )}
+            </button>
+          )}
+          {!apiKey&&item.images.length>0&&(
+            <span className="text-xs text-gray-400">API 설정 시 자동 분석 가능</span>
+          )}
+          {total>1&&<button type="button" onClick={onRemove} className="text-xs text-red-400 hover:text-red-600 transition-colors">삭제</button>}
+        </div>
       </div>
+
+      {/* 분석 결과 메시지 */}
+      {analyzeMsg&&(
+        <div className={`px-4 py-2 text-xs font-medium ${analyzeMsg.startsWith('오류')?'bg-red-50 text-red-600':'bg-green-50 text-green-600'}`}>
+          {analyzeMsg}
+        </div>
+      )}
+
       <div className="p-4 space-y-3">
         <ImgUploader images={item.images}
           onAdd={imgs=>onChange({...item,images:[...item.images,...imgs].slice(0,5)})}
@@ -660,7 +769,8 @@ function ClothingCard({item,index,total,onChange,onRemove}){
           {fields.map(({key,label,ph})=>(
             <div key={key}>
               <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-              <input type="text" placeholder={ph} value={item[key]} onChange={e=>onChange({...item,[key]:e.target.value})}
+              <input type="text" placeholder={ph} value={item[key]}
+                onChange={e=>onChange({...item,[key]:e.target.value})}
                 className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
             </div>
           ))}
@@ -676,15 +786,20 @@ function ClothingCard({item,index,total,onChange,onRemove}){
   );
 }
 
-function ClothingSection({set,up}){
+function ClothingSection({set,up,apiKey}){
   const updateItem=(id,u)=>up(s=>({...s,clothingItems:s.clothingItems.map(c=>c.id===id?u:c)}));
-  const removeItem=(id)=>up(s=>({...s,clothingItems:s.clothingItems.filter(c=>c.id!==id)}));
+  const removeItem=id=>up(s=>({...s,clothingItems:s.clothingItems.filter(c=>c.id!==id)}));
   const addItem=()=>{if(set.clothingItems.length<5)up(s=>({...s,clothingItems:[...s.clothingItems,newClothingItem()]}));};
   return(
     <div className="space-y-3">
+      {!apiKey&&(
+        <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 text-xs text-violet-700">
+          <strong>자동 분석 팁:</strong> 헤더의 ⚙️ 설정에서 Claude API 키를 등록하면 의류 이미지 업로드 시 소재/색상/핏 등을 자동으로 분석합니다.
+        </div>
+      )}
       {set.clothingItems.map((item,i)=>(
         <ClothingCard key={item.id} item={item} index={i} total={set.clothingItems.length}
-          onChange={u=>updateItem(item.id,u)} onRemove={()=>removeItem(item.id)}/>
+          onChange={u=>updateItem(item.id,u)} onRemove={()=>removeItem(item.id)} apiKey={apiKey}/>
       ))}
       {set.clothingItems.length<5&&(
         <button type="button" onClick={addItem}
@@ -703,7 +818,7 @@ function StyleSection({set,up}){
         onAdd={imgs=>up(s=>({...s,styleImages:[...s.styleImages,...imgs].slice(0,5)}))}
         onRemove={i=>up(s=>({...s,styleImages:s.styleImages.filter((_,j)=>j!==i)}))}
         maxN={5} label="스타일 레퍼런스 이미지"/>
-      <textarea placeholder="스타일 메모 (예: 레트로 감성, 파스텔 톤 위주, 스포티한 느낌)"
+      <textarea placeholder="스타일 메모 (예: 레트로 감성, 파스텔 톤 위주)"
         value={set.styleMemo} onChange={e=>up(s=>({...s,styleMemo:e.target.value}))} rows={3}
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"/>
     </div>
@@ -711,7 +826,7 @@ function StyleSection({set,up}){
 }
 
 /* ── SET CARD ───────────────────────────────────────────────────────────── */
-function SetCard({set,index,up,onRemove,canRemove,savedModels}){
+function SetCard({set,index,up,onRemove,canRemove,savedModels,apiKey}){
   const tog=k=>up(s=>({...s,open:{...s.open,[k]:!s.open[k]}}));
   const selectedName=set.selectedModelId?savedModels.find(m=>m.id===set.selectedModelId)?.name:null;
   const sections=[
@@ -720,7 +835,7 @@ function SetCard({set,index,up,onRemove,canRemove,savedModels}){
     {k:'expression',  title:'3. 표정',                  el:<ExpressionSection  set={set} up={up}/>},
     {k:'composition', title:'4. 구도 / 카메라 앵글',    el:<CompositionSection set={set} up={up}/>},
     {k:'background',  title:'5. 배경',                  el:<BackgroundSection  set={set} up={up}/>},
-    {k:'clothing',    title:'6. 의류 정보',             el:<ClothingSection    set={set} up={up}/>},
+    {k:'clothing',    title:'6. 의류 정보',             el:<ClothingSection    set={set} up={up} apiKey={apiKey}/>},
     {k:'style',       title:'7. 스타일 레퍼런스 (선택)', el:<StyleSection       set={set} up={up}/>},
   ];
   return(
@@ -743,26 +858,19 @@ function SetCard({set,index,up,onRemove,canRemove,savedModels}){
 /* ── PROMPT RESULT ──────────────────────────────────────────────────────── */
 function PromptResult({item}){
   const [copied,setCopied]=useState(false);
-
   const copyText=()=>{
-    const text=item.prompt;
-    if(navigator.clipboard?.writeText){
-      navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);}).catch(()=>fb(text));
-    } else { fb(text); }
+    const t=item.prompt;
+    if(navigator.clipboard?.writeText){navigator.clipboard.writeText(t).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);}).catch(()=>fb(t));}
+    else fb(t);
   };
-  const fb=(text)=>{
-    const ta=document.createElement('textarea'); ta.value=text;
-    ta.style.cssText='position:fixed;opacity:0;top:0;left:0';
-    document.body.appendChild(ta); ta.focus(); ta.select();
-    try{document.execCommand('copy');}catch{}
-    document.body.removeChild(ta);
-    setCopied(true); setTimeout(()=>setCopied(false),2000);
+  const fb=t=>{
+    const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');}catch{}document.body.removeChild(ta);
+    setCopied(true);setTimeout(()=>setCopied(false),2000);
   };
-
   const m=item.meta;
   return(
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-4 fade-in">
-      {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -781,26 +889,20 @@ function PromptResult({item}){
           {copied?'✓ 복사됨':'프롬프트 복사'}
         </button>
       </div>
-
-      {/* Image Panel */}
       <ImagePanel images={item.images}/>
-
-      {/* Prompt Text */}
       <pre className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 font-mono leading-6 overflow-x-auto">{item.prompt}</pre>
     </div>
   );
 }
 
-/* ── HISTORY ────────────────────────────────────────────────────────────── */
 function HistorySection({history,onClear}){
   if(!history.length) return null;
   const download=()=>{
     const csv=buildCSV(history);
     const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url;
-    a.download=`fashion_prompts_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    const a=document.createElement('a');a.href=url;a.download=`fashion_prompts_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   };
   return(
     <section id="history-section" className="mt-10">
@@ -826,45 +928,43 @@ function App(){
   const [sets,setSets]=useState([newSet(1)]);
   const [history,setHistory]=useState([]);
   const [showLibrary,setShowLibrary]=useState(false);
+  const [showApiSettings,setShowApiSettings]=useState(false);
+  const [apiKey,setApiKey]=useState(()=>localStorage.getItem(LS_APIKEY)||'');
   const [savedModels,setSavedModels]=useState(()=>{
-    try{return JSON.parse(localStorage.getItem(LS_KEY)||'[]');}catch{return [];}
+    try{return JSON.parse(localStorage.getItem(LS_MODELS)||'[]');}catch{return [];}
   });
 
   useEffect(()=>{
-    try{localStorage.setItem(LS_KEY,JSON.stringify(savedModels));}
-    catch(e){console.warn('localStorage 저장 실패:',e);}
+    try{localStorage.setItem(LS_MODELS,JSON.stringify(savedModels));}catch(e){console.warn('저장 실패:',e);}
   },[savedModels]);
 
-  const addModel=(m)=>setSavedModels(prev=>[...prev,m]);
-  const updateModel=(id,data)=>setSavedModels(prev=>prev.map(m=>m.id===id?{...m,...data}:m));
-  const deleteModel=(id)=>{
-    setSavedModels(prev=>prev.filter(m=>m.id!==id));
-    setSets(prev=>prev.map(s=>s.selectedModelId===id?{...s,selectedModelId:null,modelSource:'direct',modelImages:[]}:s));
+  const saveApiKey=key=>{
+    setApiKey(key);
+    if(key) localStorage.setItem(LS_APIKEY,key);
+    else localStorage.removeItem(LS_APIKEY);
   };
 
-  const upSet=useCallback((id,fn)=>setSets(prev=>prev.map(s=>s.id===id?fn(s):s)),[]);
-  const addSet=()=>setSets(prev=>[...prev,newSet(prev.length+1)]);
-  const removeSet=(id)=>setSets(prev=>prev.filter(s=>s.id!==id));
+  const addModel=m=>setSavedModels(p=>[...p,m]);
+  const updateModel=(id,d)=>setSavedModels(p=>p.map(m=>m.id===id?{...m,...d}:m));
+  const deleteModel=id=>{
+    setSavedModels(p=>p.filter(m=>m.id!==id));
+    setSets(p=>p.map(s=>s.selectedModelId===id?{...s,selectedModelId:null,modelSource:'direct',modelImages:[]}:s));
+  };
+
+  const upSet=useCallback((id,fn)=>setSets(p=>p.map(s=>s.id===id?fn(s):s)),[]);
+  const addSet=()=>setSets(p=>[...p,newSet(p.length+1)]);
+  const removeSet=id=>setSets(p=>p.filter(s=>s.id!==id));
 
   const generate=()=>{
     const now=new Date();
     const ts=`${now.toLocaleDateString('ko-KR')} ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
     const items=sets.map(set=>({
       id:uid(), timestamp:ts,
-      meta:{
-        ...set, modelImages:[], bgImage:null, styleImages:[],
-        clothingItems:set.clothingItems.map(c=>({...c,images:[]})),
-      },
-      /* Store actual images for display in result card */
-      images:{
-        model: set.modelImages,
-        clothing: set.clothingItems.flatMap(c=>c.images),
-        background: set.bgImage,
-        style: set.styleImages,
-      },
+      meta:{...set,modelImages:[],bgImage:null,styleImages:[],clothingItems:set.clothingItems.map(c=>({...c,images:[]}))},
+      images:{model:set.modelImages,clothing:set.clothingItems.flatMap(c=>c.images),background:set.bgImage,style:set.styleImages},
       prompt:buildPrompt(set),
     }));
-    setHistory(prev=>[...prev,...items]);
+    setHistory(p=>[...p,...items]);
     setTimeout(()=>document.getElementById('history-section')?.scrollIntoView({behavior:'smooth'}),150);
   };
 
@@ -876,23 +976,34 @@ function App(){
             <h1 className="text-lg font-bold text-gray-900">아동 패션 프롬프트 생성기</h1>
             <p className="text-xs text-gray-400 mt-0.5">AI 이미지 생성 도구용 프롬프트 자동 생성</p>
           </div>
-          <button type="button" onClick={()=>setShowLibrary(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm shrink-0">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-            모델 라이브러리
-            {savedModels.length>0&&(
-              <span className="bg-white text-indigo-600 text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">{savedModels.length}</span>
-            )}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* API 설정 버튼 */}
+            <button type="button" onClick={()=>setShowApiSettings(true)} title="Claude API 설정"
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                apiKey?'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100':'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'}`}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              {apiKey?'API 연결됨':'API 설정'}
+            </button>
+            {/* 모델 라이브러리 */}
+            <button type="button" onClick={()=>setShowLibrary(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              모델 라이브러리
+              {savedModels.length>0&&(
+                <span className="bg-white text-indigo-600 text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">{savedModels.length}</span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
-      {showLibrary&&(
-        <ModelLibraryModal onClose={()=>setShowLibrary(false)} savedModels={savedModels}
-          onAdd={addModel} onUpdate={updateModel} onDelete={deleteModel}/>
-      )}
+      {showLibrary&&<ModelLibraryModal onClose={()=>setShowLibrary(false)} savedModels={savedModels} onAdd={addModel} onUpdate={updateModel} onDelete={deleteModel}/>}
+      {showApiSettings&&<ApiSettingsModal apiKey={apiKey} onSave={saveApiKey} onClose={()=>setShowApiSettings(false)}/>}
 
       <main className="max-w-3xl mx-auto px-4 py-6">
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
@@ -906,7 +1017,8 @@ function App(){
 
         {sets.map((set,i)=>(
           <SetCard key={set.id} set={set} index={i} up={fn=>upSet(set.id,fn)}
-            onRemove={()=>removeSet(set.id)} canRemove={sets.length>1} savedModels={savedModels}/>
+            onRemove={()=>removeSet(set.id)} canRemove={sets.length>1}
+            savedModels={savedModels} apiKey={apiKey}/>
         ))}
 
         <button type="button" onClick={addSet}
